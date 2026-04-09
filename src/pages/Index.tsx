@@ -6,6 +6,8 @@ import { ClientsSection, PetitionsSection } from "./ClientsPetitions";
 import { DeadlinesSection, InvestigationsSection, AnalyticsSection } from "./DeadlinesInvestigationsAnalytics";
 import { SettingsSection } from "./Settings";
 import type { Section } from "./types-and-data";
+import type { User } from "@/auth";
+import { apiLogout } from "@/auth";
 import { fetchTasks, fetchDeadlines } from "@/api";
 
 // ─── Nav items ────────────────────────────────────────────────────────────────
@@ -21,12 +23,21 @@ const navItems = [
   { key: "settings", label: "Настройки", icon: "Settings" },
 ] as const;
 
+// ─── Props ────────────────────────────────────────────────────────────────────
+
+interface IndexProps {
+  user: User;
+  onLogout: () => void;
+  onUserUpdate: (u: User) => void;
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 
-const Index = () => {
+const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
   const [section, setSection] = useState<Section>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [urgentCount, setUrgentCount] = useState(0);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -44,6 +55,14 @@ const Index = () => {
     setSidebarOpen(false);
   };
 
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    await apiLogout();
+    onLogout();
+  };
+
+  const displayName = user.full_name || user.email.split("@")[0];
+
   const renderSection = () => {
     switch (section) {
       case "dashboard": return <DashboardSection />;
@@ -53,7 +72,7 @@ const Index = () => {
       case "deadlines": return <DeadlinesSection />;
       case "investigations": return <InvestigationsSection />;
       case "analytics": return <AnalyticsSection />;
-      case "settings": return <SettingsSection />;
+      case "settings": return <SettingsSection user={user} onUserUpdate={onUserUpdate} />;
     }
   };
 
@@ -62,13 +81,10 @@ const Index = () => {
 
       {/* Mobile overlay */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-20 bg-black/50 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 z-20 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Sidebar — desktop: always visible, mobile: slide-in drawer */}
+      {/* Sidebar */}
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-30
@@ -78,6 +94,7 @@ const Index = () => {
         `}
         style={{ background: "hsl(222 45% 14%)" }}
       >
+        {/* Logo */}
         <div className="flex items-center gap-3 px-4 py-4 border-b" style={{ borderColor: "hsl(222 38% 22%)" }}>
           <div className="w-7 h-7 rounded flex items-center justify-center shrink-0" style={{ background: "hsl(var(--accent))" }}>
             <Icon name="Scale" size={14} style={{ color: "hsl(222 45% 12%)" }} />
@@ -91,6 +108,7 @@ const Index = () => {
           </button>
         </div>
 
+        {/* Nav */}
         <nav className="flex-1 py-3 space-y-0.5 px-2 overflow-y-auto">
           {navItems.map(item => (
             <button key={item.key} onClick={() => handleNav(item.key as Section)}
@@ -104,21 +122,33 @@ const Index = () => {
           ))}
         </nav>
 
+        {/* User footer */}
         <div className="px-4 py-3 border-t" style={{ borderColor: "hsl(222 38% 22%)" }}>
           <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: "hsl(var(--accent))" }}>
-              <Icon name="User" size={12} style={{ color: "hsl(222 45% 12%)" }} />
+            <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 font-golos font-bold text-xs" style={{ background: "hsl(var(--accent))", color: "hsl(222 45% 12%)" }}>
+              {displayName.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs text-white font-semibold font-golos truncate">Адвокат</p>
-              <p className="text-[10px] text-blue-300 font-ibm">Адвокатская палата</p>
+              <p className="text-xs text-white font-semibold font-golos truncate">{displayName}</p>
+              <p className="text-[10px] text-blue-300 font-ibm truncate">{user.email}</p>
             </div>
-            <button
-              onClick={() => handleNav("settings")}
-              className={`shrink-0 transition-colors ${section === "settings" ? "text-[hsl(var(--accent))]" : "text-blue-300 hover:text-white"}`}
-            >
-              <Icon name="Settings" size={15} />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => handleNav("settings")}
+                className={`transition-colors p-1 rounded ${section === "settings" ? "text-[hsl(var(--accent))]" : "text-blue-300 hover:text-white"}`}
+                title="Настройки"
+              >
+                <Icon name="Settings" size={14} />
+              </button>
+              <button
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="text-blue-300 hover:text-red-400 transition-colors p-1 rounded"
+                title="Выйти"
+              >
+                <Icon name="LogOut" size={14} />
+              </button>
+            </div>
           </div>
         </div>
       </aside>
@@ -127,11 +157,7 @@ const Index = () => {
       <main className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Header */}
         <header className="h-12 border-b border-border bg-white flex items-center px-3 lg:px-5 gap-2 shrink-0">
-          {/* Mobile burger */}
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="lg:hidden text-muted-foreground hover:text-foreground transition-colors shrink-0"
-          >
+          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-muted-foreground hover:text-foreground transition-colors shrink-0">
             <Icon name="Menu" size={20} />
           </button>
 
@@ -150,6 +176,15 @@ const Index = () => {
                 <span>{urgentCount}</span>
               </div>
             )}
+            {/* Logout — header mobile */}
+            <button
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="lg:hidden text-muted-foreground hover:text-red-500 transition-colors p-1"
+              title="Выйти"
+            >
+              <Icon name="LogOut" size={16} />
+            </button>
           </div>
         </header>
 
