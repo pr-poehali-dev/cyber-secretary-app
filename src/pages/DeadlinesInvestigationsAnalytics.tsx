@@ -1,18 +1,39 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { allDeadlines, allInvestigations, allClients } from "./types-and-data";
-import type { InvestigationAction } from "./types-and-data";
+import type { InvestigationAction, Deadline, Client } from "./types-and-data";
+import { fetchDeadlines, fetchInvestigations, patchInvestigationDone, fetchClients } from "@/api";
+
+function toInvestigation(r: any): InvestigationAction {
+  return { id: r.id, client: r.client, action: r.action, date: r.date, location: r.location, done: r.done, type: r.type };
+}
+function toDeadline(r: any): Deadline {
+  return { id: r.id, title: r.title, client: r.client, daysLeft: r.days_left, type: r.type, date: r.date };
+}
+function toClient(r: any): Client {
+  return { id: r.id, name: r.name, type: r.type, caseNumber: r.case_number, status: r.status, nextDate: r.next_date,
+    totalBilled: r.total_billed, lastContact: r.last_contact, category: r.category, investigator: r.investigator,
+    investigatorPhone: r.investigator_phone, investigatorOffice: r.investigator_office, agency: r.agency };
+}
 
 // ─── Deadlines ────────────────────────────────────────────────────────────────
 
 export function DeadlinesSection() {
+  const [deadlines, setDeadlines] = useState<Deadline[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDeadlines().then(d => setDeadlines(d.map(toDeadline))).finally(() => setLoading(false));
+  }, []);
+
   const urgencyColor = (d: number) => d <= 2 ? "status-urgent" : d <= 7 ? "status-paid" : "status-normal";
   const urgencyLabel = (d: number) => d === 0 ? "Сегодня" : d === 1 ? "Завтра" : `${d} д.`;
   const typeLabel = { appeal: "Апелляция", complaint: "Жалоба", motion: "Ходатайство", response: "Отзыв" };
   const typeIcon = { appeal: "ArrowUpRight", complaint: "FileWarning", motion: "FileText", response: "MessageSquare" };
+
+  if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
 
   return (
     <div className="space-y-4 lg:space-y-5 animate-fade-in">
@@ -28,7 +49,7 @@ export function DeadlinesSection() {
           <h3 className="font-golos font-semibold text-sm">Контроль сроков</h3>
         </div>
         <div className="divide-y divide-border">
-          {[...allDeadlines].sort((a, b) => a.daysLeft - b.daysLeft).map(d => (
+          {[...deadlines].sort((a, b) => a.daysLeft - b.daysLeft).map(d => (
             <div key={d.id} className="px-3 lg:px-5 py-3 lg:py-4">
               {/* Mobile: stacked layout */}
               <div className="flex items-start gap-2 lg:gap-4">
@@ -64,7 +85,7 @@ export function DeadlinesSection() {
           {Array.from({ length: 30 }, (_, i) => {
             const day = i + 9;
             const calDay = day > 30 ? day - 30 : day;
-            const hasDeadline = allDeadlines.find(d => parseInt(d.date.split(".")[0]) === calDay && d.daysLeft <= 30);
+            const hasDeadline = deadlines.find(d => parseInt(d.date.split(".")[0]) === calDay && d.daysLeft <= 30);
             return (
               <div key={i} className={`aspect-square rounded flex items-center justify-center text-[10px] lg:text-xs font-ibm relative ${hasDeadline ? (hasDeadline.daysLeft <= 2 ? "bg-red-100 text-red-700 font-bold" : "bg-amber-100 text-amber-700 font-semibold") : "text-muted-foreground hover:bg-secondary"}`}>
                 {calDay}
@@ -85,8 +106,17 @@ export function DeadlinesSection() {
 // ─── Investigations ───────────────────────────────────────────────────────────
 
 export function InvestigationsSection() {
-  const [actions, setActions] = useState<InvestigationAction[]>(allInvestigations);
-  const toggleDone = (id: number) => setActions(prev => prev.map(a => a.id === id ? { ...a, done: !a.done } : a));
+  const [actions, setActions] = useState<InvestigationAction[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchInvestigations().then(d => setActions(d.map(toInvestigation))).finally(() => setLoading(false));
+  }, []);
+
+  const toggleDone = async (id: number, current: boolean) => {
+    const updated = await patchInvestigationDone(id, !current);
+    setActions(prev => prev.map(a => a.id === id ? { ...a, done: updated.done } : a));
+  };
 
   const typeColors: Record<string, string> = {
     "допрос": "bg-blue-50 text-blue-700 border-blue-200",
@@ -98,6 +128,8 @@ export function InvestigationsSection() {
 
   const pending = actions.filter(a => !a.done);
   const done = actions.filter(a => a.done);
+
+  if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
 
   return (
     <div className="space-y-4 lg:space-y-5 animate-fade-in">
@@ -132,7 +164,7 @@ export function InvestigationsSection() {
         <div className="divide-y divide-border">
           {pending.map(a => (
             <div key={a.id} className="flex items-start gap-3 px-3 lg:px-5 py-3 lg:py-3.5">
-              <Checkbox checked={a.done} onCheckedChange={() => toggleDone(a.id)} className="mt-0.5 shrink-0" />
+              <Checkbox checked={a.done} onCheckedChange={() => toggleDone(a.id, a.done)} className="mt-0.5 shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-ibm text-sm text-foreground leading-snug">{a.action}</p>
@@ -160,7 +192,7 @@ export function InvestigationsSection() {
           <div className="divide-y divide-border">
             {done.map(a => (
               <div key={a.id} className="flex items-start gap-3 px-3 lg:px-5 py-3 lg:py-3.5 opacity-55">
-                <Checkbox checked={a.done} onCheckedChange={() => toggleDone(a.id)} className="mt-0.5 shrink-0" />
+                <Checkbox checked={a.done} onCheckedChange={() => toggleDone(a.id, a.done)} className="mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="font-ibm text-sm line-through text-muted-foreground leading-snug">{a.action}</p>
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -180,12 +212,23 @@ export function InvestigationsSection() {
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 export function AnalyticsSection() {
-  const paidRevenue = allClients.filter(c => c.type === "paid").reduce((s, c) => s + c.totalBilled, 0);
-  const article51Count = allClients.filter(c => c.type === "article51").length;
-  const paidWithBill = allClients.filter(c => c.type === "paid" && c.totalBilled > 0);
-  const avgBill = Math.round(paidRevenue / paidWithBill.length);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [investigations, setInvestigations] = useState<InvestigationAction[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const casesByCategory = allClients.reduce((acc, c) => {
+  useEffect(() => {
+    Promise.all([fetchClients(), fetchInvestigations()]).then(([c, inv]) => {
+      setClients(c.map(toClient));
+      setInvestigations(inv.map(toInvestigation));
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const paidRevenue = clients.filter(c => c.type === "paid").reduce((s, c) => s + c.totalBilled, 0);
+  const article51Count = clients.filter(c => c.type === "article51").length;
+  const paidWithBill = clients.filter(c => c.type === "paid" && c.totalBilled > 0);
+  const avgBill = paidWithBill.length ? Math.round(paidRevenue / paidWithBill.length) : 0;
+
+  const casesByCategory = clients.reduce((acc, c) => {
     const cat = c.category.split(" ")[0];
     acc[cat] = (acc[cat] || 0) + 1;
     return acc;
@@ -199,6 +242,8 @@ export function AnalyticsSection() {
   ];
   const maxRevenue = Math.max(...monthlyData.map(d => d.revenue));
 
+  if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
+
   return (
     <div className="space-y-4 lg:space-y-5 animate-fade-in">
       <h2 className="font-golos font-bold text-xl text-foreground">Аналитика практики</h2>
@@ -209,7 +254,7 @@ export function AnalyticsSection() {
           { label: "Общий доход", value: `${(paidRevenue / 1000).toFixed(0)}к ₽`, icon: "DollarSign", color: "text-emerald-600" },
           { label: "Средний счёт", value: `${(avgBill / 1000).toFixed(0)}к ₽`, icon: "BarChart2", color: "text-blue-600" },
           { label: "По назначению", value: `${article51Count} чел.`, icon: "UserCheck", color: "text-purple-600" },
-          { label: "Действий завершено", value: `${allInvestigations.filter(i => i.done).length}/${allInvestigations.length}`, icon: "Activity", color: "gold-text" },
+          { label: "Действий завершено", value: `${investigations.filter(i => i.done).length}/${investigations.length}`, icon: "Activity", color: "gold-text" },
         ].map((s, i) => (
           <div key={i} className="bg-white rounded-lg border border-border p-3 lg:p-4">
             <div className="flex items-center justify-between mb-1.5 lg:mb-2">
@@ -247,7 +292,7 @@ export function AnalyticsSection() {
                   <span className="text-muted-foreground">{count} {count === 1 ? "дело" : "дела"}</span>
                 </div>
                 <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${(count / allClients.length) * 100}%`, background: "hsl(var(--primary))" }} />
+                  <div className="h-full rounded-full" style={{ width: `${(count / (clients.length || 1)) * 100}%`, background: "hsl(var(--primary))" }} />
                 </div>
               </div>
             ))}
@@ -258,7 +303,7 @@ export function AnalyticsSection() {
         <div className="bg-white rounded-lg border border-border p-4 lg:p-5 lg:col-span-2">
           <h3 className="font-golos font-semibold text-sm mb-3 lg:mb-4">Доверители по доходу</h3>
           <div className="space-y-2 lg:space-y-2.5">
-            {allClients.filter(c => c.totalBilled > 0).sort((a, b) => b.totalBilled - a.totalBilled).map(c => (
+            {clients.filter(c => c.totalBilled > 0).sort((a, b) => b.totalBilled - a.totalBilled).map(c => (
               <div key={c.id} className="flex items-center gap-2 lg:gap-3">
                 <span className="font-ibm text-xs lg:text-sm text-foreground w-28 lg:w-44 truncate shrink-0">{c.name.split(" ").slice(0, 2).join(" ")}</span>
                 <div className="flex-1 h-1.5 lg:h-2 bg-secondary rounded-full overflow-hidden">

@@ -1,18 +1,25 @@
-import { useState } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { allClients } from "./types-and-data";
 import type { Client } from "./types-and-data";
+import { fetchClients, updateClient } from "@/api";
+
+function toClient(r: any): Client & { history: {id: number; note: string; event_date: string}[] } {
+  return {
+    id: r.id, name: r.name, type: r.type, caseNumber: r.case_number,
+    status: r.status, nextDate: r.next_date, totalBilled: r.total_billed,
+    lastContact: r.last_contact, category: r.category,
+    investigator: r.investigator, investigatorPhone: r.investigator_phone,
+    investigatorOffice: r.investigator_office, agency: r.agency,
+    history: r.history || [],
+  };
+}
 
 // ─── Clients ──────────────────────────────────────────────────────────────────
 
-const clientHistory = [
-  { date: "08.04.2026", note: "Ознакомился с материалами дела, том 3" },
-  { date: "05.04.2026", note: "Судебное заседание — отложено" },
-  { date: "02.04.2026", note: "Направлено ходатайство о приобщении доказательств" },
-  { date: "28.03.2026", note: "Встреча с доверителем, уточнение позиции" },
-];
+
 
 type EditableFields = Pick<Client, "investigator" | "investigatorPhone" | "investigatorOffice" | "agency" | "nextDate">;
 
@@ -29,12 +36,14 @@ function EditField({ label, value, onChange }: { label: string; value: string; o
   );
 }
 
+type ClientWithHistory = Client & { history: {id: number; note: string; event_date: string}[] };
+
 // Detail panel — shared between inline (desktop) and modal (mobile)
 function ClientDetail({
   selected, editing, draft, statusLabel,
   onEdit, onSave, onCancel, setField,
 }: {
-  selected: Client;
+  selected: ClientWithHistory;
   editing: boolean;
   draft: EditableFields | null;
   statusLabel: Record<string, string>;
@@ -96,9 +105,9 @@ function ClientDetail({
             <div>
               <p className="text-xs text-muted-foreground mb-2 font-semibold uppercase tracking-wider">История</p>
               <div className="space-y-2">
-                {clientHistory.map((h, i) => (
-                  <div key={i} className="flex gap-2.5 text-xs">
-                    <span className="text-muted-foreground shrink-0">{h.date}</span>
+                {selected.history.map((h) => (
+                  <div key={h.id} className="flex gap-2.5 text-xs">
+                    <span className="text-muted-foreground shrink-0">{h.event_date}</span>
                     <span className="text-foreground">{h.note}</span>
                   </div>
                 ))}
@@ -116,12 +125,18 @@ function ClientDetail({
 
 export function ClientsSection() {
   const [filter, setFilter] = useState<"all" | "paid" | "article51" | "appeal">("all");
-  const [clients, setClients] = useState<Client[]>(allClients);
-  const [selected, setSelected] = useState<Client | null>(null);
+  const [clients, setClients] = useState<ClientWithHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<ClientWithHistory | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<EditableFields | null>(null);
-  // Mobile: show detail panel as overlay
   const [mobileDetail, setMobileDetail] = useState(false);
+
+  useEffect(() => {
+    fetchClients()
+      .then(data => setClients(data.map(toClient)))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered = clients.filter(c =>
     filter === "all" ? true : filter === "appeal" ? c.status === "appeal" : c.type === filter
@@ -130,7 +145,7 @@ export function ClientsSection() {
   const statusLabel = { active: "Активно", closed: "Закрыто", appeal: "Апелляция" };
   const statusStyle = { active: "status-done", closed: "status-normal", appeal: "status-paid" };
 
-  const handleSelect = (client: Client) => {
+  const handleSelect = (client: ClientWithHistory) => {
     setSelected(client);
     setEditing(false);
     setDraft(null);
@@ -149,9 +164,10 @@ export function ClientsSection() {
     setEditing(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selected || !draft) return;
-    const updated = { ...selected, ...draft };
+    const raw = await updateClient(selected.id, draft);
+    const updated = { ...toClient(raw), history: selected.history };
     setClients(prev => prev.map(c => c.id === selected.id ? updated : c));
     setSelected(updated);
     setEditing(false);
@@ -167,6 +183,8 @@ export function ClientsSection() {
     setDraft(prev => prev ? { ...prev, [key]: value } : prev);
 
   const detailProps = { selected: selected!, editing, draft, statusLabel, onEdit: handleEdit, onSave: handleSave, onCancel: handleCancel, setField };
+
+  if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
 
   return (
     <div className="space-y-4 animate-fade-in">

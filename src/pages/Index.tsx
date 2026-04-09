@@ -1,10 +1,11 @@
-import { useState } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { DashboardSection, PlanningSection } from "./DashboardPlanning";
 import { ClientsSection, PetitionsSection } from "./ClientsPetitions";
 import { DeadlinesSection, InvestigationsSection, AnalyticsSection } from "./DeadlinesInvestigationsAnalytics";
-import { todayTasks, allDeadlines } from "./types-and-data";
 import type { Section } from "./types-and-data";
+import { fetchTasks, fetchDeadlines } from "@/api";
 
 // ─── Nav items ────────────────────────────────────────────────────────────────
 
@@ -23,8 +24,18 @@ const navItems = [
 const Index = () => {
   const [section, setSection] = useState<Section>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [urgentCount, setUrgentCount] = useState(0);
 
-  const urgentCount = todayTasks.filter(t => t.urgent && !t.done).length + allDeadlines.filter(d => d.daysLeft <= 2).length;
+  useEffect(() => {
+    Promise.all([
+      fetchTasks("09.04.2026"),
+      fetchDeadlines(),
+    ]).then(([tasks, deadlines]) => {
+      const u = tasks.filter((t: any) => t.urgent && !t.done).length
+              + deadlines.filter((d: any) => d.days_left <= 2).length;
+      setUrgentCount(u);
+    }).catch(() => {});
+  }, []);
 
   const handleNav = (key: Section) => {
     setSection(key);
