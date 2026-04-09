@@ -34,11 +34,11 @@ export interface User {
 // ── Запросы к backend ────────────────────────────────────────────────────────
 
 async function authRequest<T>(
-  path: string,
+  action: string,
   options?: RequestInit
 ): Promise<T> {
   const token = getToken();
-  const res = await fetch(`${AUTH_URL}${path}`, {
+  const res = await fetch(`${AUTH_URL}?action=${action}`, {
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -55,7 +55,7 @@ export async function apiRegister(
   password: string,
   fullName: string
 ): Promise<User> {
-  const data = await authRequest<{ token: string; user: User }>("/register", {
+  const data = await authRequest<{ token: string; user: User }>("register", {
     method: "POST",
     body: JSON.stringify({ email, password, fullName }),
   });
@@ -67,7 +67,7 @@ export async function apiLogin(
   email: string,
   password: string
 ): Promise<User> {
-  const data = await authRequest<{ token: string; user: User }>("/login", {
+  const data = await authRequest<{ token: string; user: User }>("login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
@@ -76,7 +76,7 @@ export async function apiLogin(
 }
 
 export async function apiGetMe(): Promise<User> {
-  const data = await authRequest<{ user: User }>("/me");
+  const data = await authRequest<{ user: User }>("me");
   return data.user;
 }
 
@@ -87,7 +87,7 @@ export async function apiUpdateMe(updates: {
   oldPassword?: string;
   newPassword?: string;
 }): Promise<User> {
-  const data = await authRequest<{ user: User }>("/me", {
+  const data = await authRequest<{ user: User }>("me", {
     method: "PUT",
     body: JSON.stringify(updates),
   });
@@ -98,7 +98,7 @@ export async function apiLogout(): Promise<void> {
   const token = getToken();
   if (!token) return;
   try {
-    await authRequest("/logout", { method: "POST" });
+    await authRequest("logout", { method: "POST" });
   } finally {
     clearToken();
   }

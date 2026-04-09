@@ -63,14 +63,15 @@ def handler(event: dict, context) -> dict:
         return {"statusCode": 200, "headers": CORS, "body": ""}
 
     method = event.get("httpMethod", "GET")
-    path = event.get("path", "/").rstrip("/")
+    qs = event.get("queryStringParameters") or {}
+    action = qs.get("action", "")
 
     body = {}
     if event.get("body"):
         body = json.loads(event["body"])
 
     # ── POST /register ────────────────────────────────────────────────────────
-    if path == "/register" and method == "POST":
+    if action == "register" and method == "POST":
         email = body.get("email", "").strip().lower()
         password = body.get("password", "")
         full_name = body.get("fullName", "").strip()
@@ -106,7 +107,7 @@ def handler(event: dict, context) -> dict:
         return resp({"token": token, "user": user}, 201)
 
     # ── POST /login ───────────────────────────────────────────────────────────
-    if path == "/login" and method == "POST":
+    if action == "login" and method == "POST":
         email = body.get("email", "").strip().lower()
         password = body.get("password", "")
 
@@ -141,7 +142,7 @@ def handler(event: dict, context) -> dict:
         return resp({"token": token, "user": user})
 
     # ── GET /me ───────────────────────────────────────────────────────────────
-    if path == "/me" and method == "GET":
+    if action == "me" and method == "GET":
         token = get_token(event)
         if not token:
             return resp({"error": "Не авторизован"}, 401)
@@ -155,7 +156,7 @@ def handler(event: dict, context) -> dict:
         return resp({"user": dict(user)})
 
     # ── PUT /me ───────────────────────────────────────────────────────────────
-    if path == "/me" and method == "PUT":
+    if action == "me" and method == "PUT":
         token = get_token(event)
         if not token:
             return resp({"error": "Не авторизован"}, 401)
@@ -203,7 +204,7 @@ def handler(event: dict, context) -> dict:
         return resp({"user": updated})
 
     # ── POST /logout ──────────────────────────────────────────────────────────
-    if path == "/logout" and method == "POST":
+    if action == "logout" and method == "POST":
         token = get_token(event)
         if token:
             with get_conn() as conn:
