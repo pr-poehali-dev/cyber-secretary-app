@@ -222,7 +222,7 @@ export function DeadlinesSection() {
                     <span className="text-xs font-semibold text-foreground">{d.date}</span>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" className="shrink-0 text-xs h-7 px-2">
+                <Button size="sm" variant="outline" disabled className="shrink-0 text-xs h-7 px-2 opacity-40 cursor-not-allowed" title="Напоминания будут доступны в следующей версии">
                   <Icon name="Bell" size={12} className="lg:mr-1" />
                   <span className="hidden lg:inline">Напомнить</span>
                 </Button>

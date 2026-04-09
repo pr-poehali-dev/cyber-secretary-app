@@ -135,7 +135,7 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
 
 export function ClientDetail({
   selected, editing, draft, statusLabel,
-  onEdit, onSave, onCancel, setField,
+  onEdit, onSave, onCancel, setField, onNavigatePetitions,
 }: {
   selected: ClientWithHistory;
   editing: boolean;
@@ -145,6 +145,7 @@ export function ClientDetail({
   onSave: () => void;
   onCancel: () => void;
   setField: (key: keyof EditableFields) => (v: string) => void;
+  onNavigatePetitions?: () => void;
 }) {
   return (
     <>
@@ -207,7 +208,7 @@ export function ClientDetail({
                 ))}
               </div>
             </div>
-            <Button size="sm" variant="outline" className="w-full text-xs">
+            <Button size="sm" variant="outline" className="w-full text-xs" onClick={onNavigatePetitions}>
               <Icon name="FileText" size={13} className="mr-1.5" /> Сформировать ходатайство
             </Button>
           </>
@@ -219,7 +220,7 @@ export function ClientDetail({
 
 // ─── ClientsSection ───────────────────────────────────────────────────────────
 
-export function ClientsSection() {
+export function ClientsSection({ onNavigatePetitions }: { onNavigatePetitions?: () => void } = {}) {
   const [filter, setFilter] = useState<"all" | "paid" | "article51" | "appeal">("all");
   const [clients, setClients] = useState<ClientWithHistory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -279,7 +280,7 @@ export function ClientsSection() {
   const setField = (key: keyof EditableFields) => (value: string) =>
     setDraft(prev => prev ? { ...prev, [key]: value } : prev);
 
-  const detailProps = { selected: selected!, editing, draft, statusLabel, onEdit: handleEdit, onSave: handleSave, onCancel: handleCancel, setField };
+  const detailProps = { selected: selected!, editing, draft, statusLabel, onEdit: handleEdit, onSave: handleSave, onCancel: handleCancel, setField, onNavigatePetitions };
 
   if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
 

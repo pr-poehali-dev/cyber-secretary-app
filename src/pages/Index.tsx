@@ -67,7 +67,7 @@ const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
     switch (section) {
       case "dashboard": return <DashboardSection />;
       case "planning": return <PlanningSection />;
-      case "clients": return <ClientsSection />;
+      case "clients": return <ClientsSection onNavigatePetitions={() => setSection("petitions")} />;
       case "petitions": return <PetitionsSection />;
       case "deadlines": return <DeadlinesSection />;
       case "investigations": return <InvestigationsSection />;
