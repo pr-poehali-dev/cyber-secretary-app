@@ -12,7 +12,7 @@ import { toInvestigation, toClient } from "./dia-shared";
 // Модальное окно с выбором доверителя из базы и заполнением деталей действия
 
 // Все допустимые типы следственных действий
-const INV_TYPES: InvestigationAction["type"][] = ["допрос", "обыск", "очная ставка", "экспертиза", "ознакомление"];
+const INV_TYPES: InvestigationAction["type"][] = ["допрос", "обыск", "очная ставка", "экспертиза", "ознакомление", "суд"];
 
 function NewInvestigationModal({
   clients,
@@ -167,6 +167,7 @@ export function InvestigationsSection() {
     "очная ставка": "bg-purple-50 text-purple-700 border-purple-200",
     "экспертиза": "bg-emerald-50 text-emerald-700 border-emerald-200",
     "ознакомление": "bg-amber-50 text-amber-700 border-amber-200",
+    "суд": "bg-sky-50 text-sky-700 border-sky-200",
   };
 
   const filtered = filterClientId

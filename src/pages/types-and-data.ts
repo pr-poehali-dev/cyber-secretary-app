@@ -43,7 +43,7 @@ export interface InvestigationAction {
   date: string;
   location: string;
   done: boolean;
-  type: "допрос" | "обыск" | "очная ставка" | "экспертиза" | "ознакомление";
+  type: "допрос" | "обыск" | "очная ставка" | "экспертиза" | "ознакомление" | "суд";
 }
 
 export interface Deadline {

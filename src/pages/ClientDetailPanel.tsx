@@ -34,18 +34,23 @@ const emptyClientForm = {
 export function NewClientModal({ onClose, onCreated }: { onClose: () => void; onCreated: (c: ClientWithHistory) => void }) {
   const [form, setForm] = useState(emptyClientForm);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const set = (k: keyof typeof emptyClientForm) => (v: string) =>
     setForm(prev => ({ ...prev, [k]: v }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.caseNumber.trim()) return;
+    if (!form.name.trim()) { setError("Введите ФИО доверителя"); return; }
+    if (!form.caseNumber.trim()) { setError("Введите номер дела"); return; }
+    setError("");
     setSaving(true);
     try {
       const raw = await createClient({ ...form, totalBilled: 0, lastContact: "" });
       onCreated(toClient(raw));
       onClose();
+    } catch {
+      setError("Ошибка при сохранении. Попробуйте ещё раз.");
     } finally {
       setSaving(false);
     }
@@ -85,15 +90,9 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <p className={labelCls}>Номер дела *</p>
-              <input className={inputCls} placeholder="1-245/2026" value={form.caseNumber} onChange={e => set("caseNumber")(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <p className={labelCls}>Ближайшая дата</p>
-              <input className={inputCls} placeholder="15.04.2026" value={form.nextDate} onChange={e => set("nextDate")(e.target.value)} />
-            </div>
+          <div className="space-y-1">
+            <p className={labelCls}>Номер дела *</p>
+            <input className={inputCls} placeholder="1-245/2026" value={form.caseNumber} onChange={e => set("caseNumber")(e.target.value)} />
           </div>
           <div className="space-y-1">
             <p className={labelCls}>Статья / категория</p>
@@ -120,8 +119,13 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
               <input className={inputCls} placeholder="СК России по ЦАО г. Москвы" value={form.agency} onChange={e => set("agency")(e.target.value)} />
             </div>
           </div>
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 font-ibm">
+              {error}
+            </div>
+          )}
           <div className="flex gap-2 pt-1">
-            <Button type="submit" disabled={saving || !form.name.trim() || !form.caseNumber.trim()}
+            <Button type="submit" disabled={saving}
               className="flex-1 bg-[hsl(var(--primary))] text-white text-sm">
               {saving ? "Сохранение..." : "Добавить доверителя"}
             </Button>
