@@ -1,4 +1,5 @@
  
+// Раздел «Следственные действия»: список с фильтром по доверителю, форма добавления действия
 import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,9 @@ import type { InvestigationAction, Client } from "./dia-shared";
 import { toInvestigation, toClient } from "./dia-shared";
 
 // ─── New Investigation Modal ──────────────────────────────────────────────────
+// Модальное окно с выбором доверителя из базы и заполнением деталей действия
 
+// Все допустимые типы следственных действий
 const INV_TYPES: InvestigationAction["type"][] = ["допрос", "обыск", "очная ставка", "экспертиза", "ознакомление"];
 
 function NewInvestigationModal({

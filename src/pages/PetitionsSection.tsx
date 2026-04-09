@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// Раздел «Ходатайства на оплату»: двухшаговый процесс — выбор доверителя → позиции → генерация документа
 import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { generatePetitionPdf, generatePetitionHtml } from "./petition-generators
 import type { PetitionItem } from "./petition-generators";
 
 // ─── Маппинг следственных действий → позиции ходатайства ─────────────────────
+// Соответствие типа действия → название строки в документе и тариф (₽)
 
 const INV_TYPE_RATES: Record<string, { name: string; rate: number }> = {
   "допрос":       { name: "Участие в следственном действии (допрос)", rate: 3500 },

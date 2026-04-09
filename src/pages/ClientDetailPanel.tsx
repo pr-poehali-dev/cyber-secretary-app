@@ -23,7 +23,9 @@ function EditField({ label, value, onChange }: { label: string; value: string; o
 }
 
 // ─── NewClientModal ───────────────────────────────────────────────────────────
+// Модальное окно создания нового доверителя со всеми реквизитами
 
+// Начальное (пустое) состояние формы
 const emptyClientForm = {
   name: "", type: "paid" as Client["type"], caseNumber: "", status: "active" as Client["status"],
   category: "", nextDate: "", investigator: "", investigatorPhone: "", investigatorOffice: "", agency: "",
@@ -132,6 +134,7 @@ export function NewClientModal({ onClose, onCreated }: { onClose: () => void; on
 }
 
 // ─── ClientDetail ─────────────────────────────────────────────────────────────
+// Панель с деталями выбранного доверителя: просмотр, редактирование, история контактов
 
 export function ClientDetail({
   selected, editing, draft, statusLabel,
@@ -219,6 +222,7 @@ export function ClientDetail({
 }
 
 // ─── ClientsSection ───────────────────────────────────────────────────────────
+// Главный раздел доверителей: двухколоночный layout (список + детали), фильтры, мобильный оверлей
 
 export function ClientsSection({ onNavigatePetitions }: { onNavigatePetitions?: () => void } = {}) {
   const [filter, setFilter] = useState<"all" | "paid" | "article51" | "appeal">("all");

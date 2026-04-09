@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// Раздел «Аналитика практики»: KPI-карточки, доход по месяцам, дела по категориям, доверители по доходу
 import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { fetchClients, fetchInvestigations } from "@/api";
@@ -28,6 +29,7 @@ export function AnalyticsSection() {
     return acc;
   }, {} as Record<string, number>);
 
+  // Статические данные по месяцам — в будущем заменить на реальные данные из API
   const monthlyData = [
     { month: "Янв", revenue: 68000 },
     { month: "Фев", revenue: 95000 },
