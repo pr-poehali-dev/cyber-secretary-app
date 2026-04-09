@@ -7,7 +7,8 @@ export type Section =
   | "petitions"
   | "deadlines"
   | "investigations"
-  | "analytics";
+  | "analytics"
+  | "settings";
 
 export interface Task {
   id: number;

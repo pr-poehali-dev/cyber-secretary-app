@@ -4,6 +4,7 @@ import Icon from "@/components/ui/icon";
 import { DashboardSection, PlanningSection } from "./DashboardPlanning";
 import { ClientsSection, PetitionsSection } from "./ClientsPetitions";
 import { DeadlinesSection, InvestigationsSection, AnalyticsSection } from "./DeadlinesInvestigationsAnalytics";
+import { SettingsSection } from "./Settings";
 import type { Section } from "./types-and-data";
 import { fetchTasks, fetchDeadlines } from "@/api";
 
@@ -17,6 +18,7 @@ const navItems = [
   { key: "deadlines", label: "Сроки обжалования", icon: "Clock" },
   { key: "investigations", label: "Следственные действия", icon: "Search" },
   { key: "analytics", label: "Аналитика", icon: "BarChart2" },
+  { key: "settings", label: "Настройки", icon: "Settings" },
 ] as const;
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
@@ -51,6 +53,7 @@ const Index = () => {
       case "deadlines": return <DeadlinesSection />;
       case "investigations": return <InvestigationsSection />;
       case "analytics": return <AnalyticsSection />;
+      case "settings": return <SettingsSection />;
     }
   };
 
@@ -106,10 +109,16 @@ const Index = () => {
             <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: "hsl(var(--accent))" }}>
               <Icon name="User" size={12} style={{ color: "hsl(222 45% 12%)" }} />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-xs text-white font-semibold font-golos truncate">Адвокат</p>
               <p className="text-[10px] text-blue-300 font-ibm">Адвокатская палата</p>
             </div>
+            <button
+              onClick={() => handleNav("settings")}
+              className={`shrink-0 transition-colors ${section === "settings" ? "text-[hsl(var(--accent))]" : "text-blue-300 hover:text-white"}`}
+            >
+              <Icon name="Settings" size={15} />
+            </button>
           </div>
         </div>
       </aside>
