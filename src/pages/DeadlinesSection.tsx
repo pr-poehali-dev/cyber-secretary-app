@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { fetchDeadlines, createDeadline } from "@/api";
+import { LoadError } from "@/components/ui/load-error";
 import { getRules, subscribeRules } from "./appeal-rules-store";
 import type { AppealRule } from "./appeal-rules-store";
 import type { Deadline } from "./dia-shared";
@@ -171,10 +172,21 @@ export function DeadlinesSection() {
   const [rules, setRulesState] = useState<AppealRule[]>(getRules());
   const [showForm, setShowForm] = useState(false);
 
+  const [loadError, setLoadError] = useState(false);
+
+  const loadData = () => {
+    setLoading(true);
+    setLoadError(false);
+    fetchDeadlines()
+      .then(d => setDeadlines(d.map(toDeadline)))
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
+  };
+
   useEffect(() => {
-    fetchDeadlines().then(d => setDeadlines(d.map(toDeadline))).finally(() => setLoading(false));
+    loadData();  
     return subscribeRules(() => setRulesState(getRules()));
-  }, []);
+  }, []);  
 
   const urgencyColor = (d: number) => d <= 2 ? "status-urgent" : d <= 7 ? "status-paid" : "status-normal";
   const urgencyLabel = (d: number) => d === 0 ? "Сегодня" : d === 1 ? "Завтра" : `${d} д.`;
@@ -182,6 +194,7 @@ export function DeadlinesSection() {
   const typeIcon = { appeal: "ArrowUpRight", complaint: "FileWarning", motion: "FileText", response: "MessageSquare" };
 
   if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
+  if (loadError) return <LoadError onRetry={loadData} />;
 
   return (
     <>

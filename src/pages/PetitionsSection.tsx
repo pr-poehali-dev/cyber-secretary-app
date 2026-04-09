@@ -5,6 +5,7 @@ import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { fetchClients, fetchInvestigationsByClient, fetchInvestigationTypes } from "@/api";
+import { LoadError } from "@/components/ui/load-error";
 import type { InvestigationType } from "@/api";
 import type { ClientWithHistory } from "./client-shared";
 import { toClient } from "./client-shared";
@@ -28,14 +29,21 @@ export function PetitionsSection() {
   const [filter, setFilter] = useState<"all" | "paid" | "article51" | "active" | "appeal">("all");
   const [invTypes, setInvTypes] = useState<InvestigationType[]>([]);
 
-  useEffect(() => {
+  const [loadError, setLoadError] = useState(false);
+
+  const loadData = () => {
+    setLoadingClients(true);
+    setLoadError(false);
     Promise.all([fetchClients(), fetchInvestigationTypes()])
       .then(([cl, types]) => {
         setClients(cl.map(toClient));
         setInvTypes(types);
       })
+      .catch(() => setLoadError(true))
       .finally(() => setLoadingClients(false));
-  }, []);
+  };
+
+  useEffect(() => { loadData(); }, []);  
 
   // Строим маппинг имя_типа → {название_строки, тариф} из данных БД
   const buildRates = (types: InvestigationType[]): Record<string, { name: string; rate: number }> => {
@@ -84,6 +92,7 @@ export function PetitionsSection() {
   if (loadingClients) return (
     <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>
   );
+  if (loadError) return <LoadError onRetry={loadData} />;
 
   return (
     <div className="space-y-4 lg:space-y-5 animate-fade-in">

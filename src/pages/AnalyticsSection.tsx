@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { fetchClients, fetchInvestigations } from "@/api";
+import { LoadError } from "@/components/ui/load-error";
 import type { InvestigationAction, Client } from "./dia-shared";
 import { toInvestigation, toClient } from "./dia-shared";
 
@@ -11,12 +12,18 @@ export function AnalyticsSection() {
   const [investigations, setInvestigations] = useState<InvestigationAction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const [loadError, setLoadError] = useState(false);
+
+  const loadData = () => {
+    setLoading(true);
+    setLoadError(false);
     Promise.all([fetchClients(), fetchInvestigations()]).then(([c, inv]) => {
       setClients(c.map(toClient));
       setInvestigations(inv.map(toInvestigation));
-    }).finally(() => setLoading(false));
-  }, []);
+    }).catch(() => setLoadError(true)).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadData(); }, []);  
 
   const paidRevenue = clients.filter(c => c.type === "paid").reduce((s, c) => s + c.totalBilled, 0);
   const article51Count = clients.filter(c => c.type === "article51").length;
@@ -39,6 +46,7 @@ export function AnalyticsSection() {
   const maxRevenue = Math.max(...monthlyData.map(d => d.revenue));
 
   if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
+  if (loadError) return <LoadError onRetry={loadData} />;
 
   return (
     <div className="space-y-4 lg:space-y-5 animate-fade-in">

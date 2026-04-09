@@ -3,16 +3,26 @@
 const BASE = "https://functions.poehali.dev/49e90f24-9d75-43e2-913b-dc53dadeacfd";
 const BILLING_BASE = "https://functions.poehali.dev/dbb5e1ba-a1e9-4938-8746-f96ad8f8de53";
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`API error ${res.status}: ${path} — ${text}`);
+// Retry при сетевых ошибках (cold start): 3 попытки с задержкой 1.5s
+async function request<T>(path: string, options?: RequestInit, attempt = 0): Promise<T> {
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      ...options,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`API error ${res.status}: ${path} — ${text}`);
+    }
+    return res.json();
+  } catch (err: any) {
+    // Повторяем только при сетевых ошибках (Failed to fetch), не при HTTP-ошибках
+    if (attempt < 3 && err?.message?.includes("fetch")) {
+      await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+      return request<T>(path, options, attempt + 1);
+    }
+    throw err;
   }
-  return res.json();
 }
 
 // ── Clients ──────────────────────────────────────────────────────────────────
@@ -106,12 +116,21 @@ export function deleteInvestigationType(id: number) {
 
 // ── Billing ───────────────────────────────────────────────────────────────────
 
-function billingRequest<T>(path: string, options?: RequestInit): Promise<T> {
+async function billingRequest<T>(path: string, options?: RequestInit, attempt = 0): Promise<T> {
   const token = localStorage.getItem("lexdesk_token") ?? "";
-  return fetch(`${BILLING_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    ...options,
-  }).then(r => r.json());
+  try {
+    const r = await fetch(`${BILLING_BASE}${path}`, {
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      ...options,
+    });
+    return r.json();
+  } catch (err: any) {
+    if (attempt < 3 && err?.message?.includes("fetch")) {
+      await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+      return billingRequest<T>(path, options, attempt + 1);
+    }
+    throw err;
+  }
 }
 
 export function fetchSubscriptionStatus() {

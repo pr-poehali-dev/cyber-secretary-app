@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { fetchClients, updateClient, createClient } from "@/api";
+import { LoadError } from "@/components/ui/load-error";
 import type { Client } from "./types-and-data";
 import type { EditableFields, ClientWithHistory } from "./client-shared";
 import { toClient } from "./client-shared";
@@ -238,11 +239,18 @@ export function ClientsSection({ onNavigatePetitions }: { onNavigatePetitions?: 
   const [mobileDetail, setMobileDetail] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
-  useEffect(() => {
+  const [loadError, setLoadError] = useState(false);
+
+  const loadData = () => {
+    setLoading(true);
+    setLoadError(false);
     fetchClients()
       .then(data => setClients(data.map(toClient)))
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { loadData(); }, []);  
 
   const filtered = clients.filter(c =>
     filter === "all" ? true : filter === "appeal" ? c.status === "appeal" : c.type === filter
@@ -291,6 +299,7 @@ export function ClientsSection({ onNavigatePetitions }: { onNavigatePetitions?: 
   const detailProps = { selected: selected!, editing, draft, statusLabel, onEdit: handleEdit, onSave: handleSave, onCancel: handleCancel, setField, onNavigatePetitions };
 
   if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
+  if (loadError) return <LoadError onRetry={loadData} />;
 
   return (
     <>

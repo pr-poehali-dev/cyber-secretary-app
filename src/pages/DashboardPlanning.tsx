@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { taskTypeConfig } from "./types-and-data";
 import type { Task, Client, Deadline } from "./types-and-data";
 import { fetchTasks, patchTaskDone, createTask, fetchClients, fetchDeadlines } from "@/api";
+import { LoadError } from "@/components/ui/load-error";
 
 function toTask(r: any): Task {
   return {
@@ -50,8 +51,11 @@ export function DashboardSection() {
   const [clients, setClients] = useState<Client[]>([]);
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoading(true);
+    setLoadError(false);
     Promise.all([
       fetchTasks(todayStr()),
       fetchClients(),
@@ -60,14 +64,17 @@ export function DashboardSection() {
       setTasks(t.map(toTask));
       setClients(c.map(toClient));
       setDeadlines(d.map(toDeadline));
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+    }).catch(() => setLoadError(true)).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadData(); }, []);  
 
   const urgentCount = tasks.filter(t => t.urgent && !t.done).length;
   const doneCount = tasks.filter(t => t.done).length;
   const totalBilled = clients.reduce((s, c) => s + c.totalBilled, 0);
 
   if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
+  if (loadError) return <LoadError onRetry={loadData} />;
 
   return (
     <div className="space-y-4 lg:space-y-6 animate-fade-in">
@@ -220,13 +227,19 @@ function NewTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
 export function PlanningSection() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoading(true);
+    setLoadError(false);
     fetchTasks(todayStr())
       .then(data => setTasks(data.map(toTask)))
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { loadData(); }, []);  
 
   const toggle = async (id: number, current: boolean) => {
     const updated = await patchTaskDone(id, !current);
@@ -236,6 +249,7 @@ export function PlanningSection() {
   const doneCount = tasks.filter(t => t.done).length;
 
   if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
+  if (loadError) return <LoadError onRetry={loadData} />;
 
   return (
     <>

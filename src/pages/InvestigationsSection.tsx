@@ -5,6 +5,7 @@ import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { fetchInvestigations, patchInvestigationDone, fetchClients, createInvestigation, fetchInvestigationTypes } from "@/api";
+import { LoadError } from "@/components/ui/load-error";
 import type { InvestigationAction, Client } from "./dia-shared";
 import type { InvestigationType } from "@/api";
 import { toInvestigation, toClient } from "./dia-shared";
@@ -157,7 +158,11 @@ export function InvestigationsSection() {
   const [invTypes, setInvTypes] = useState<InvestigationType[]>([]);
   const [showForm, setShowForm] = useState(false);
 
-  useEffect(() => {
+  const [loadError, setLoadError] = useState(false);
+
+  const loadData = () => {
+    setLoading(true);
+    setLoadError(false);
     Promise.all([
       fetchInvestigations(),
       fetchClients(),
@@ -166,8 +171,10 @@ export function InvestigationsSection() {
       setActions(inv.map(toInvestigation));
       setClients(cl.map(toClient));
       setInvTypes(types);
-    }).finally(() => setLoading(false));
-  }, []);
+    }).catch(() => setLoadError(true)).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadData(); }, []);  
 
   const [filterClientId, setFilterClientId] = useState<number | null>(null);
 
@@ -193,6 +200,7 @@ export function InvestigationsSection() {
   const done = filtered.filter(a => a.done);
 
   if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
+  if (loadError) return <LoadError onRetry={loadData} />;
 
   return (
     <>
