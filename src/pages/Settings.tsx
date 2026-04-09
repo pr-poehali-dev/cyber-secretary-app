@@ -6,6 +6,11 @@ import { getRules, setRules as storeSetRules, subscribeRules } from "./appeal-ru
 import type { AppealRule } from "./appeal-rules-store";
 import type { User } from "@/auth";
 import { apiUpdateMe } from "@/auth";
+import {
+  fetchInvestigationTypes, createInvestigationType,
+  updateInvestigationType, deleteInvestigationType,
+} from "@/api";
+import type { InvestigationType } from "@/api";
 
 const NOTIFY_URL = "https://functions.poehali.dev/f2fb4c5c-3848-4fe1-b5f6-727a2a12636a";
 
@@ -48,6 +53,15 @@ export function SettingsSection({ user, onUserUpdate }: Props) {
   const [newPassword, setNewPassword] = useState("");
   const [showPasswords, setShowPasswords] = useState(false);
 
+  // Типы следственных действий
+  const [invTypes, setInvTypes] = useState<InvestigationType[]>([]);
+  const [invTypesLoading, setInvTypesLoading] = useState(true);
+  const [editingTypeId, setEditingTypeId] = useState<number | null>(null);
+  const [typeForm, setTypeForm] = useState<{ name: string; rate: string }>({ name: "", rate: "" });
+  const [addingType, setAddingType] = useState(false);
+  const [newTypeForm, setNewTypeForm] = useState({ name: "", rate: "" });
+  const [typeSaving, setTypeSaving] = useState(false);
+
   // Статусы
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
@@ -56,6 +70,59 @@ export function SettingsSection({ user, onUserUpdate }: Props) {
   const [testMsg, setTestMsg] = useState("");
 
   useEffect(() => subscribeRules(() => setRulesState(getRules())), []);
+
+  useEffect(() => {
+    fetchInvestigationTypes()
+      .then(setInvTypes)
+      .catch(() => {})
+      .finally(() => setInvTypesLoading(false));
+  }, []);
+
+  // ── Типы следственных действий ──────────────────────────────────────────────
+
+  const startEditType = (t: InvestigationType) => {
+    setEditingTypeId(t.id);
+    setTypeForm({ name: t.name, rate: String(t.rate) });
+  };
+
+  const saveType = async (id: number) => {
+    if (!typeForm.name.trim()) return;
+    setTypeSaving(true);
+    try {
+      const updated = await updateInvestigationType(id, {
+        name: typeForm.name.trim(),
+        rate: parseInt(typeForm.rate) || 0,
+        sort_order: invTypes.find(t => t.id === id)?.sort_order ?? 100,
+      });
+      setInvTypes(prev => prev.map(t => t.id === id ? updated : t));
+      setEditingTypeId(null);
+    } finally {
+      setTypeSaving(false);
+    }
+  };
+
+  const deleteType = async (id: number) => {
+    if (!confirm("Удалить этот тип? Действие нельзя отменить.")) return;
+    await deleteInvestigationType(id);
+    setInvTypes(prev => prev.filter(t => t.id !== id));
+  };
+
+  const addType = async () => {
+    if (!newTypeForm.name.trim()) return;
+    setTypeSaving(true);
+    try {
+      const created = await createInvestigationType({
+        name: newTypeForm.name.trim(),
+        rate: parseInt(newTypeForm.rate) || 0,
+        sort_order: invTypes.length + 1,
+      });
+      setInvTypes(prev => [...prev, created]);
+      setNewTypeForm({ name: "", rate: "" });
+      setAddingType(false);
+    } finally {
+      setTypeSaving(false);
+    }
+  };
 
   // ── Сроки обжалования ──────────────────────────────────────────────────────
 
@@ -373,6 +440,104 @@ export function SettingsSection({ user, onUserUpdate }: Props) {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ── Типы следственных действий ─────────────────────────────────────── */}
+      <div className="bg-white rounded-lg border border-border overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-border flex items-center gap-2">
+          <Icon name="Search" size={15} className="text-[hsl(var(--accent))]" />
+          <h3 className="font-golos font-semibold text-sm text-foreground">Типы следственных действий</h3>
+          <Button size="sm" variant="outline" onClick={() => setAddingType(true)} className="ml-auto text-xs h-7 px-2.5">
+            <Icon name="Plus" size={12} className="mr-1" /> Добавить
+          </Button>
+        </div>
+
+        {invTypesLoading ? (
+          <div className="px-5 py-6 text-center text-sm text-muted-foreground font-ibm">Загрузка...</div>
+        ) : (
+          <div className="divide-y divide-border">
+            {invTypes.map(t => (
+              <div key={t.id} className="px-5 py-3">
+                {editingTypeId === t.id ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="flex-1 text-sm font-ibm bg-secondary border border-border rounded px-2.5 py-1.5 focus:outline-none focus:border-[hsl(var(--primary))]"
+                      value={typeForm.name}
+                      onChange={e => setTypeForm(f => ({ ...f, name: e.target.value }))}
+                      placeholder="Название типа"
+                    />
+                    <div className="flex items-center gap-1 shrink-0">
+                      <input
+                        type="number"
+                        className="w-24 text-sm font-ibm bg-secondary border border-border rounded px-2.5 py-1.5 focus:outline-none focus:border-[hsl(var(--primary))] text-right"
+                        value={typeForm.rate}
+                        onChange={e => setTypeForm(f => ({ ...f, rate: e.target.value }))}
+                        placeholder="Ставка ₽"
+                        min={0}
+                      />
+                      <span className="text-xs text-muted-foreground">₽</span>
+                    </div>
+                    <button onClick={() => saveType(t.id)} disabled={typeSaving} className="text-emerald-600 hover:text-emerald-700 p-1">
+                      <Icon name="Check" size={15} />
+                    </button>
+                    <button onClick={() => setEditingTypeId(null)} className="text-muted-foreground hover:text-foreground p-1">
+                      <Icon name="X" size={15} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-ibm text-foreground">{t.name}</span>
+                    </div>
+                    <span className="text-sm font-golos font-semibold text-muted-foreground shrink-0">
+                      {t.rate.toLocaleString()} ₽
+                    </span>
+                    <button onClick={() => startEditType(t)} className="text-muted-foreground hover:text-foreground p-1 shrink-0">
+                      <Icon name="Pencil" size={13} />
+                    </button>
+                    <button onClick={() => deleteType(t.id)} className="text-muted-foreground hover:text-red-500 p-1 shrink-0">
+                      <Icon name="Trash2" size={13} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Форма добавления */}
+            {addingType && (
+              <div className="px-5 py-3 bg-secondary">
+                <div className="flex items-center gap-2">
+                  <input
+                    autoFocus
+                    className="flex-1 text-sm font-ibm bg-white border border-border rounded px-2.5 py-1.5 focus:outline-none focus:border-[hsl(var(--primary))]"
+                    value={newTypeForm.name}
+                    onChange={e => setNewTypeForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Название (напр. «допрос»)"
+                    onKeyDown={e => e.key === "Enter" && addType()}
+                  />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <input
+                      type="number"
+                      className="w-24 text-sm font-ibm bg-white border border-border rounded px-2.5 py-1.5 focus:outline-none focus:border-[hsl(var(--primary))] text-right"
+                      value={newTypeForm.rate}
+                      onChange={e => setNewTypeForm(f => ({ ...f, rate: e.target.value }))}
+                      placeholder="Ставка ₽"
+                      min={0}
+                    />
+                    <span className="text-xs text-muted-foreground">₽</span>
+                  </div>
+                  <button onClick={addType} disabled={typeSaving || !newTypeForm.name.trim()} className="text-emerald-600 hover:text-emerald-700 p-1 disabled:opacity-40">
+                    <Icon name="Check" size={15} />
+                  </button>
+                  <button onClick={() => { setAddingType(false); setNewTypeForm({ name: "", rate: "" }); }} className="text-muted-foreground hover:text-foreground p-1">
+                    <Icon name="X" size={15} />
+                  </button>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1.5 font-ibm">Нажмите Enter или ✓ для сохранения</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── О системе ──────────────────────────────────────────────────────── */}

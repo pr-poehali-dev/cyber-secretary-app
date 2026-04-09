@@ -199,4 +199,46 @@ def handler(event: dict, context) -> dict:
                 conn.commit()
             return resp(row, 201)
 
+    # ── /investigation-types ─────────────────────────────────────────────────
+    if path == "/investigation-types":
+        if method == "GET":
+            with get_conn() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(f"SELECT * FROM {SCHEMA}.investigation_types ORDER BY sort_order, id")
+                    rows = cur.fetchall()
+            return resp([dict(r) for r in rows])
+
+        if method == "POST":
+            with get_conn() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(f"""
+                        INSERT INTO {SCHEMA}.investigation_types (name, rate, sort_order)
+                        VALUES (%s, %s, %s) RETURNING *
+                    """, (body["name"], int(body["rate"]), int(body.get("sort_order", 100))))
+                    row = dict(cur.fetchone())
+                conn.commit()
+            return resp(row, 201)
+
+    if path.startswith("/investigation-types/"):
+        type_id = int(path.split("/")[2])
+
+        if method == "PUT":
+            with get_conn() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(f"""
+                        UPDATE {SCHEMA}.investigation_types
+                        SET name=%s, rate=%s, sort_order=%s
+                        WHERE id=%s RETURNING *
+                    """, (body["name"], int(body["rate"]), int(body.get("sort_order", 100)), type_id))
+                    row = dict(cur.fetchone())
+                conn.commit()
+            return resp(row)
+
+        if method == "DELETE":
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(f"DELETE FROM {SCHEMA}.investigation_types WHERE id=%s", (type_id,))
+                conn.commit()
+            return resp({"ok": True})
+
     return resp({"error": "Not found"}, 404)

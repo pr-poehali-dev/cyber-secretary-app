@@ -79,6 +79,31 @@ export function createDeadline(data: Record<string, any>) {
   return request<any>("/deadlines", { method: "POST", body: JSON.stringify(data) });
 }
 
+// ── Типы следственных действий ────────────────────────────────────────────────
+
+export interface InvestigationType {
+  id: number;
+  name: string;
+  rate: number;
+  sort_order: number;
+}
+
+export function fetchInvestigationTypes() {
+  return request<InvestigationType[]>("/investigation-types");
+}
+
+export function createInvestigationType(data: { name: string; rate: number; sort_order?: number }) {
+  return request<InvestigationType>("/investigation-types", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateInvestigationType(id: number, data: { name: string; rate: number; sort_order?: number }) {
+  return request<InvestigationType>(`/investigation-types/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function deleteInvestigationType(id: number) {
+  return request<any>(`/investigation-types/${id}`, { method: "DELETE" });
+}
+
 // ── Billing ───────────────────────────────────────────────────────────────────
 
 function billingRequest<T>(path: string, options?: RequestInit): Promise<T> {

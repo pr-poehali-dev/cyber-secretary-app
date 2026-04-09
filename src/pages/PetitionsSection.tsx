@@ -4,26 +4,15 @@ import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { fetchClients, fetchInvestigationsByClient } from "@/api";
+import { fetchClients, fetchInvestigationsByClient, fetchInvestigationTypes } from "@/api";
+import type { InvestigationType } from "@/api";
 import type { ClientWithHistory } from "./client-shared";
 import { toClient } from "./client-shared";
 import { generatePetitionPdf, generatePetitionHtml } from "./petition-generators";
 import type { PetitionItem } from "./petition-generators";
 
-// ─── Маппинг следственных действий → позиции ходатайства ─────────────────────
-// Соответствие типа действия → название строки в документе и тариф (₽)
-
-const INV_TYPE_RATES: Record<string, { name: string; rate: number }> = {
-  "допрос":       { name: "Участие в следственном действии (допрос)", rate: 3500 },
-  "обыск":        { name: "Участие в следственном действии (обыск)", rate: 5000 },
-  "очная ставка": { name: "Участие в очной ставке", rate: 4000 },
-  "экспертиза":   { name: "Участие в экспертизе", rate: 4500 },
-  "ознакомление": { name: "Ознакомление с материалами дела (том)", rate: 2500 },
-  "суд":          { name: "Участие в судебном заседании", rate: 5000 },
-};
-
+// Дополнительные позиции — не из следственных действий, добавляются вручную
 const EXTRA_ITEMS = [
-  { name: "Участие в судебном заседании", rate: 5000 },
   { name: "Составление жалобы / ходатайства", rate: 3000 },
   { name: "Консультация (час)", rate: 2000 },
 ];
@@ -37,12 +26,23 @@ export function PetitionsSection() {
   const [loadingClients, setLoadingClients] = useState(true);
   const [loadingInv, setLoadingInv] = useState(false);
   const [filter, setFilter] = useState<"all" | "paid" | "article51" | "active" | "appeal">("all");
+  const [invTypes, setInvTypes] = useState<InvestigationType[]>([]);
 
   useEffect(() => {
-    fetchClients()
-      .then(data => setClients(data.map(toClient)))
+    Promise.all([fetchClients(), fetchInvestigationTypes()])
+      .then(([cl, types]) => {
+        setClients(cl.map(toClient));
+        setInvTypes(types);
+      })
       .finally(() => setLoadingClients(false));
   }, []);
+
+  // Строим маппинг имя_типа → {название_строки, тариф} из данных БД
+  const buildRates = (types: InvestigationType[]): Record<string, { name: string; rate: number }> => {
+    const map: Record<string, { name: string; rate: number }> = {};
+    types.forEach(t => { map[t.name] = { name: t.name.charAt(0).toUpperCase() + t.name.slice(1), rate: t.rate }; });
+    return map;
+  };
 
   const handleSelectClient = async (clientId: number) => {
     setSelectedClientId(clientId);
@@ -52,8 +52,9 @@ export function PetitionsSection() {
     try {
       const raw = await fetchInvestigationsByClient(client.name);
       const done = raw.filter((r: any) => r.done);
+      const rates = buildRates(invTypes);
       const invItems: PetitionItem[] = done.map((r: any) => {
-        const mapped = INV_TYPE_RATES[r.type] ?? { name: r.action, rate: 3000 };
+        const mapped = rates[r.type] ?? { name: r.action, rate: 3000 };
         return { id: `inv-${r.id}`, name: mapped.name, rate: mapped.rate, fromInv: true, invDate: r.date, checked: true };
       });
       const extraItems: PetitionItem[] = EXTRA_ITEMS.map((e, i) => ({

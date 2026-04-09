@@ -4,27 +4,27 @@ import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { fetchInvestigations, patchInvestigationDone, fetchClients, createInvestigation } from "@/api";
+import { fetchInvestigations, patchInvestigationDone, fetchClients, createInvestigation, fetchInvestigationTypes } from "@/api";
 import type { InvestigationAction, Client } from "./dia-shared";
+import type { InvestigationType } from "@/api";
 import { toInvestigation, toClient } from "./dia-shared";
 
 // ─── New Investigation Modal ──────────────────────────────────────────────────
 // Модальное окно с выбором доверителя из базы и заполнением деталей действия
 
-// Все допустимые типы следственных действий
-const INV_TYPES: InvestigationAction["type"][] = ["допрос", "обыск", "очная ставка", "экспертиза", "ознакомление", "суд"];
-
 function NewInvestigationModal({
   clients,
+  invTypes,
   onClose,
   onCreated,
 }: {
   clients: Client[];
+  invTypes: InvestigationType[];
   onClose: () => void;
   onCreated: (a: InvestigationAction) => void;
 }) {
   const [clientId, setClientId] = useState<string>(clients[0]?.id ? String(clients[0].id) : "");
-  const [type, setType] = useState<InvestigationAction["type"]>("допрос");
+  const [type, setType] = useState<string>(invTypes[0]?.name ?? "допрос");
   const [action, setAction] = useState("");
   const [date, setDate] = useState("");
   const [location, setLocation] = useState("");
@@ -82,9 +82,9 @@ function NewInvestigationModal({
 
           <div className="space-y-1">
             <p className={labelCls}>Тип действия *</p>
-            <select className={inputCls} value={type} onChange={e => setType(e.target.value as InvestigationAction["type"])}>
-              {INV_TYPES.map(t => (
-                <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+            <select className={inputCls} value={type} onChange={e => setType(e.target.value)}>
+              {invTypes.map(t => (
+                <option key={t.id} value={t.name}>{t.name.charAt(0).toUpperCase() + t.name.slice(1)}</option>
               ))}
             </select>
           </div>
@@ -138,19 +138,34 @@ function NewInvestigationModal({
 
 // ─── InvestigationsSection ────────────────────────────────────────────────────
 
+// Фиксированная палитра цветов для бейджей типов
+const TYPE_COLOR_PALETTE = [
+  "bg-blue-50 text-blue-700 border-blue-200",
+  "bg-red-50 text-red-700 border-red-200",
+  "bg-purple-50 text-purple-700 border-purple-200",
+  "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "bg-amber-50 text-amber-700 border-amber-200",
+  "bg-sky-50 text-sky-700 border-sky-200",
+  "bg-pink-50 text-pink-700 border-pink-200",
+  "bg-teal-50 text-teal-700 border-teal-200",
+];
+
 export function InvestigationsSection() {
   const [actions, setActions] = useState<InvestigationAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
+  const [invTypes, setInvTypes] = useState<InvestigationType[]>([]);
   const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     Promise.all([
       fetchInvestigations(),
       fetchClients(),
-    ]).then(([inv, cl]) => {
+      fetchInvestigationTypes(),
+    ]).then(([inv, cl, types]) => {
       setActions(inv.map(toInvestigation));
       setClients(cl.map(toClient));
+      setInvTypes(types);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -161,14 +176,11 @@ export function InvestigationsSection() {
     setActions(prev => prev.map(a => a.id === id ? { ...a, done: updated.done } : a));
   };
 
-  const typeColors: Record<string, string> = {
-    "допрос": "bg-blue-50 text-blue-700 border-blue-200",
-    "обыск": "bg-red-50 text-red-700 border-red-200",
-    "очная ставка": "bg-purple-50 text-purple-700 border-purple-200",
-    "экспертиза": "bg-emerald-50 text-emerald-700 border-emerald-200",
-    "ознакомление": "bg-amber-50 text-amber-700 border-amber-200",
-    "суд": "bg-sky-50 text-sky-700 border-sky-200",
-  };
+  // Динамически строим словарь цветов из загруженных типов
+  const typeColors: Record<string, string> = {};
+  invTypes.forEach((t, i) => {
+    typeColors[t.name] = TYPE_COLOR_PALETTE[i % TYPE_COLOR_PALETTE.length];
+  });
 
   const filtered = filterClientId
     ? actions.filter(a => {
@@ -187,6 +199,7 @@ export function InvestigationsSection() {
     {showForm && (
       <NewInvestigationModal
         clients={clients}
+        invTypes={invTypes}
         onClose={() => setShowForm(false)}
         onCreated={a => setActions(prev => [a, ...prev])}
       />

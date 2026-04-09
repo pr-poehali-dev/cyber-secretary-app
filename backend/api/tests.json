@@ -7,6 +7,14 @@
       "expectedStatus": 404,
       "expectedBody": {"error": "Not found"},
       "bodyMatcher": "partial"
+    },
+    {
+      "name": "Get investigation types",
+      "method": "GET",
+      "path": "/investigation-types",
+      "expectedStatus": 200,
+      "expectedBody": [],
+      "bodyMatcher": "partial"
     }
   ]
 }
