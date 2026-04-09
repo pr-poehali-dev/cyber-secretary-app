@@ -33,6 +33,7 @@ export function PetitionsSection() {
   const [items, setItems] = useState<PetitionItem[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
   const [loadingInv, setLoadingInv] = useState(false);
+  const [filter, setFilter] = useState<"all" | "paid" | "article51" | "active" | "appeal">("all");
 
   useEffect(() => {
     fetchClients()
@@ -68,6 +69,14 @@ export function PetitionsSection() {
   const total = checkedItems.reduce((s, it) => s + it.rate, 0);
   const selectedClient = clients.find(c => c.id === selectedClientId);
 
+  const filteredClients = clients.filter(c => {
+    if (filter === "paid") return c.type === "paid";
+    if (filter === "article51") return c.type === "article51";
+    if (filter === "active") return c.status === "active";
+    if (filter === "appeal") return c.status === "appeal";
+    return true;
+  });
+
   if (loadingClients) return (
     <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>
   );
@@ -82,9 +91,26 @@ export function PetitionsSection() {
           <div className="w-5 h-5 rounded-full bg-[hsl(var(--primary))] text-white text-[10px] font-bold flex items-center justify-center shrink-0">1</div>
           <h3 className="font-golos font-semibold text-sm">Выберите доверителя</h3>
         </div>
+        <div className="px-4 lg:px-5 pt-3 pb-1 flex gap-1.5 flex-wrap border-b border-border">
+          {([
+            ["all",       "Все",        clients.length],
+            ["paid",      "Платные",    clients.filter(c => c.type === "paid").length],
+            ["article51", "По ст. 51",  clients.filter(c => c.type === "article51").length],
+            ["active",    "Активные",   clients.filter(c => c.status === "active").length],
+            ["appeal",    "Апелляция",  clients.filter(c => c.status === "appeal").length],
+          ] as const).map(([key, label, count]) => (
+            <button
+              key={key}
+              onClick={() => setFilter(key)}
+              className={`px-3 py-1.5 rounded text-xs font-ibm transition-all mb-2 ${filter === key ? "bg-[hsl(var(--primary))] text-white" : "bg-secondary border border-border text-foreground hover:border-muted-foreground"}`}
+            >
+              {label} <span className="ml-1 opacity-60">{count}</span>
+            </button>
+          ))}
+        </div>
         <div className="p-4 lg:p-5">
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {clients.map(c => (
+            {filteredClients.map(c => (
               <button
                 key={c.id}
                 onClick={() => handleSelectClient(c.id)}
@@ -99,6 +125,9 @@ export function PetitionsSection() {
                 <p className="text-[10px] text-muted-foreground mt-0.5">дело {c.caseNumber}</p>
               </button>
             ))}
+            {filteredClients.length === 0 && (
+              <p className="col-span-3 text-sm text-muted-foreground text-center py-4 font-ibm">Нет доверителей</p>
+            )}
           </div>
         </div>
       </div>
