@@ -391,6 +391,230 @@ export function ClientsSection() {
   );
 }
 
+// ─── Document Generators ─────────────────────────────────────────────────────
+
+function generatePetitionPdf(
+  client: Client,
+  items: PetitionItem[],
+  total: number
+) {
+  const today = new Date();
+  const dateStr = today.toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" });
+  const rows = items.map((it, idx) => `
+    <tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#374151;font-size:13px;">${idx + 1}.</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#111827;font-size:13px;">
+        ${it.name}${it.invDate ? ` <span style="color:#6b7280;font-size:11px;">(${it.invDate})</span>` : ""}
+      </td>
+      <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;color:#111827;font-size:13px;text-align:right;white-space:nowrap;">${it.rate.toLocaleString("ru-RU")} руб.</td>
+    </tr>`).join("");
+
+  const totalInWords = numberToWords(total);
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Ходатайство об оплате труда адвоката</title>
+  <style>
+    @page { margin: 20mm 25mm; size: A4; }
+    body { font-family: "Times New Roman", Times, serif; font-size: 14px; line-height: 1.6; color: #000; margin: 0; padding: 0; }
+    .header-right { text-align: right; margin-bottom: 32px; }
+    .header-right p { margin: 2px 0; font-size: 13px; }
+    h1 { text-align: center; font-size: 16px; font-weight: bold; text-transform: uppercase; margin: 24px 0 20px; }
+    .subtitle { text-align: center; font-size: 13px; margin-bottom: 24px; }
+    p { margin: 12px 0; text-align: justify; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th { background: #f3f4f6; padding: 8px 12px; border-bottom: 2px solid #d1d5db; font-size: 12px; text-align: left; font-family: Arial, sans-serif; }
+    th:last-child { text-align: right; }
+    .total-row td { padding: 10px 12px; font-weight: bold; font-size: 14px; background: #f9fafb; border-top: 2px solid #374151; }
+    .total-row td:last-child { text-align: right; }
+    .footer { margin-top: 40px; display: flex; justify-content: space-between; }
+    .signature { border-top: 1px solid #000; width: 200px; text-align: center; font-size: 12px; padding-top: 4px; }
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body>
+  <div class="header-right">
+    <p>В суд по уголовному делу № ${client.caseNumber}</p>
+    <p>от адвоката, действующего в интересах</p>
+    <p><strong>${client.name}</strong></p>
+  </div>
+
+  <h1>Ходатайство</h1>
+  <div class="subtitle">об оплате труда адвоката по назначению</div>
+
+  <p>В производстве находится уголовное дело по обвинению <strong>${client.name}</strong>
+  в совершении преступления, предусмотренного ${client.category}.</p>
+
+  <p>В период предварительного следствия мной были выполнены следующие процессуальные действия:</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:40px;">№</th>
+        <th>Наименование действия</th>
+        <th style="width:130px;text-align:right;">Сумма</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
+      <tr class="total-row">
+        <td colspan="2">ИТОГО к выплате:</td>
+        <td>${total.toLocaleString("ru-RU")} руб.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Общая сумма вознаграждения составляет <strong>${total.toLocaleString("ru-RU")} (${totalInWords}) рублей</strong>.</p>
+
+  <p>На основании изложенного и в соответствии со ст. 50, 51 УПК РФ, Постановлением Правительства РФ
+  № 1240 от 01.12.2012, прошу:</p>
+
+  <p><strong>Вынести постановление об оплате труда адвоката в размере ${total.toLocaleString("ru-RU")} рублей.</strong></p>
+
+  <div class="footer">
+    <div>
+      <p style="margin:0;font-size:13px;">${dateStr}</p>
+    </div>
+    <div>
+      <div class="signature">Адвокат</div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const iframe = document.createElement("iframe");
+  iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:0;";
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow!.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+  iframe.contentWindow!.focus();
+  setTimeout(() => {
+    iframe.contentWindow!.print();
+    setTimeout(() => document.body.removeChild(iframe), 1000);
+  }, 300);
+}
+
+// Минимальный конвертер числа в слова (рубли)
+function numberToWords(n: number): string {
+  if (n === 0) return "ноль";
+  const ones = ["","один","два","три","четыре","пять","шесть","семь","восемь","девять",
+    "десять","одиннадцать","двенадцать","тринадцать","четырнадцать","пятнадцать",
+    "шестнадцать","семнадцать","восемнадцать","девятнадцать"];
+  const tens = ["","","двадцать","тридцать","сорок","пятьдесят","шестьдесят","семьдесят","восемьдесят","девяносто"];
+  const hundreds = ["","сто","двести","триста","четыреста","пятьсот","шестьсот","семьсот","восемьсот","девятьсот"];
+  const onesF = ["","одна","две","три","четыре","пять","шесть","семь","восемь","девять",
+    "десять","одиннадцать","двенадцать","тринадцать","четырнадцать","пятнадцать",
+    "шестнадцать","семнадцать","восемнадцать","девятнадцать"];
+
+  function chunk(num: number, feminine: boolean): string {
+    const h = Math.floor(num / 100);
+    const t = Math.floor((num % 100) / 10);
+    const o = num % 10;
+    const rem = num % 100;
+    let res = "";
+    if (h) res += hundreds[h] + " ";
+    if (rem < 20) {
+      res += (feminine ? onesF[rem] : ones[rem]);
+    } else {
+      res += tens[t];
+      if (o) res += " " + (feminine ? onesF[o] : ones[o]);
+    }
+    return res.trim();
+  }
+
+  const th = Math.floor(n / 1000);
+  const rest = n % 1000;
+  let result = "";
+  if (th) {
+    result += chunk(th, true) + " ";
+    const lastTwo = th % 100;
+    const lastOne = th % 10;
+    if (lastTwo >= 11 && lastTwo <= 19) result += "тысяч ";
+    else if (lastOne === 1) result += "тысяча ";
+    else if (lastOne >= 2 && lastOne <= 4) result += "тысячи ";
+    else result += "тысяч ";
+  }
+  if (rest) result += chunk(rest, false);
+  return result.trim();
+}
+
+// Скачивает .doc (HTML-in-Word) — открывается в Word/LibreOffice
+function generatePetitionHtml(
+  client: Client,
+  items: PetitionItem[],
+  total: number
+) {
+  const today = new Date();
+  const dateStr = today.toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" });
+  const rows = items.map((it, idx) => `
+    <tr>
+      <td style="border:1px solid #ccc;padding:6px 10px;text-align:center;">${idx + 1}.</td>
+      <td style="border:1px solid #ccc;padding:6px 10px;">${it.name}${it.invDate ? ` (${it.invDate})` : ""}</td>
+      <td style="border:1px solid #ccc;padding:6px 10px;text-align:right;">${it.rate.toLocaleString("ru-RU")} руб.</td>
+    </tr>`).join("");
+
+  const totalInWords = numberToWords(total);
+
+  const content = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>Ходатайство</title>
+<style>
+  body{font-family:"Times New Roman",Times,serif;font-size:14pt;margin:2cm 3cm;}
+  h1{text-align:center;font-size:14pt;text-transform:uppercase;margin:20pt 0 10pt;}
+  p{text-align:justify;margin:8pt 0;}
+  table{width:100%;border-collapse:collapse;margin:12pt 0;}
+  th{background:#f0f0f0;border:1px solid #ccc;padding:6px 10px;font-size:12pt;}
+  .right{text-align:right;}
+  .bold{font-weight:bold;}
+  .footer{margin-top:40pt;display:flex;justify-content:space-between;}
+</style></head>
+<body>
+<div style="text-align:right;margin-bottom:24pt;">
+  <p style="margin:2pt 0;">В суд по уголовному делу № ${client.caseNumber}</p>
+  <p style="margin:2pt 0;">от адвоката, действующего в интересах</p>
+  <p style="margin:2pt 0;font-weight:bold;">${client.name}</p>
+</div>
+<h1>Ходатайство</h1>
+<p style="text-align:center;">об оплате труда адвоката по назначению</p>
+<p>В производстве находится уголовное дело по обвинению <b>${client.name}</b> в совершении преступления, предусмотренного ${client.category}.</p>
+<p>В период предварительного следствия мной были выполнены следующие процессуальные действия:</p>
+<table>
+  <thead><tr>
+    <th style="width:40px;text-align:center;">№</th>
+    <th>Наименование действия</th>
+    <th style="width:140px;text-align:right;">Сумма</th>
+  </tr></thead>
+  <tbody>
+    ${rows}
+    <tr><td colspan="2" style="border:1px solid #ccc;padding:6px 10px;font-weight:bold;">ИТОГО к выплате:</td>
+    <td style="border:1px solid #ccc;padding:6px 10px;text-align:right;font-weight:bold;">${total.toLocaleString("ru-RU")} руб.</td></tr>
+  </tbody>
+</table>
+<p>Общая сумма вознаграждения составляет <b>${total.toLocaleString("ru-RU")} (${totalInWords}) рублей</b>.</p>
+<p>На основании изложенного и в соответствии со ст. 50, 51 УПК РФ, Постановлением Правительства РФ № 1240 от 01.12.2012, прошу:</p>
+<p><b>Вынести постановление об оплате труда адвоката в размере ${total.toLocaleString("ru-RU")} рублей.</b></p>
+<div style="margin-top:40pt;display:flex;justify-content:space-between;align-items:flex-end;">
+  <div><p style="margin:0;">${dateStr}</p></div>
+  <div style="text-align:center;">
+    <div style="border-top:1px solid #000;width:200px;padding-top:4px;font-size:12pt;">Адвокат</div>
+  </div>
+</div>
+</body></html>`;
+
+  const blob = new Blob(["\uFEFF" + content], { type: "application/msword;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `Ходатайство_${client.name.split(" ")[0]}_${new Date().toLocaleDateString("ru-RU").replace(/\./g, "-")}.doc`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 // ─── Petitions ────────────────────────────────────────────────────────────────
 
 // Соответствие типа следственного действия → строка ходатайства + ставка
@@ -552,9 +776,22 @@ export function PetitionsSection() {
                 </div>
                 <span className="font-golos font-bold text-lg gold-text">{total.toLocaleString()} ₽</span>
               </div>
-              <div className="px-4 lg:px-5 py-3">
-                <Button disabled={!checkedItems.length} className="w-full bg-[hsl(var(--primary))] text-white text-sm">
-                  <Icon name="FileText" size={15} className="mr-1.5" /> Сформировать ходатайство
+              <div className="px-4 lg:px-5 py-3 flex gap-2">
+                <Button
+                  disabled={!checkedItems.length}
+                  onClick={() => selectedClient && generatePetitionPdf(selectedClient, checkedItems, total)}
+                  className="flex-1 bg-[hsl(var(--primary))] text-white text-sm"
+                >
+                  <Icon name="FileText" size={15} className="mr-1.5" /> Сформировать PDF
+                </Button>
+                <Button
+                  disabled={!checkedItems.length}
+                  variant="outline"
+                  onClick={() => selectedClient && generatePetitionHtml(selectedClient, checkedItems, total)}
+                  className="shrink-0 text-sm"
+                  title="Скачать как HTML"
+                >
+                  <Icon name="Download" size={15} />
                 </Button>
               </div>
             </>
