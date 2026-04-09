@@ -1,55 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
-
-// ─── Типы апелляционных сроков ────────────────────────────────────────────────
-
-interface AppealRule {
-  id: string;
-  label: string;
-  description: string;
-  days: number;
-  basis: string;
-}
-
-const DEFAULT_RULES: AppealRule[] = [
-  {
-    id: "sentence",
-    label: "Приговор суда первой инстанции",
-    description: "Срок подачи апелляционной жалобы на приговор",
-    days: 10,
-    basis: "ст. 389.4 УПК РФ",
-  },
-  {
-    id: "arrest",
-    label: "Заключение под стражу / домашний арест",
-    description: "Срок обжалования меры пресечения",
-    days: 3,
-    basis: "ст. 108 УПК РФ",
-  },
-  {
-    id: "search",
-    label: "Обыск / выемка",
-    description: "Срок обжалования действий следователя",
-    days: 3,
-    basis: "ст. 125 УПК РФ",
-  },
-  {
-    id: "refusal",
-    label: "Отказ в возбуждении дела",
-    description: "Срок обжалования постановления об отказе",
-    days: 3,
-    basis: "ст. 125 УПК РФ",
-  },
-  {
-    id: "cassation",
-    label: "Вступивший в силу приговор (кассация)",
-    description: "Срок подачи кассационной жалобы",
-    days: 180,
-    basis: "ст. 401.3 УПК РФ",
-  },
-];
+import { getRules, setRules as storeSetRules, subscribeRules } from "./appeal-rules-store";
+import type { AppealRule } from "./appeal-rules-store";
 
 // ─── Настройки уведомлений ────────────────────────────────────────────────────
 
@@ -70,11 +24,14 @@ const DEFAULT_NOTIF: NotifSetting[] = [
 // ─── Компонент ────────────────────────────────────────────────────────────────
 
 export function SettingsSection() {
-  const [rules, setRules] = useState<AppealRule[]>(DEFAULT_RULES);
+  const [rules, setRulesState] = useState<AppealRule[]>(getRules());
   const [notifs, setNotifs] = useState<NotifSetting[]>(DEFAULT_NOTIF);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDays, setEditDays] = useState<string>("");
   const [saved, setSaved] = useState(false);
+
+  // Подписываемся на изменения store из других компонентов
+  useEffect(() => subscribeRules(() => setRulesState(getRules())), []);
 
   const startEdit = (rule: AppealRule) => {
     setEditingId(rule.id);
@@ -84,7 +41,9 @@ export function SettingsSection() {
   const saveEdit = (id: string) => {
     const days = parseInt(editDays);
     if (!isNaN(days) && days > 0) {
-      setRules(prev => prev.map(r => r.id === id ? { ...r, days } : r));
+      const updated = rules.map(r => r.id === id ? { ...r, days } : r);
+      setRulesState(updated);
+      storeSetRules(updated); // синхронизируем глобальный store
     }
     setEditingId(null);
   };
@@ -95,6 +54,7 @@ export function SettingsSection() {
     setNotifs(prev => prev.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n));
 
   const handleSave = () => {
+    storeSetRules(rules); // финальная синхронизация при нажатии Сохранить
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -105,10 +65,7 @@ export function SettingsSection() {
     <div className="space-y-6 animate-fade-in max-w-2xl">
       <div className="flex items-center justify-between">
         <h2 className="font-golos font-bold text-xl text-foreground">Настройки</h2>
-        <Button
-          onClick={handleSave}
-          className="bg-[hsl(var(--primary))] text-white text-sm"
-        >
+        <Button onClick={handleSave} className="bg-[hsl(var(--primary))] text-white text-sm">
           {saved
             ? <><Icon name="Check" size={14} className="mr-1.5" />Сохранено</>
             : <><Icon name="Save" size={14} className="mr-1.5" />Сохранить</>
@@ -142,7 +99,10 @@ export function SettingsSection() {
                       max="365"
                       value={editDays}
                       onChange={e => setEditDays(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") saveEdit(rule.id); if (e.key === "Escape") cancelEdit(); }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") saveEdit(rule.id);
+                        if (e.key === "Escape") cancelEdit();
+                      }}
                       autoFocus
                       className={inputCls}
                     />
@@ -211,9 +171,9 @@ export function SettingsSection() {
         </div>
         <div className="p-5 space-y-4">
           {[
-            { icon: "Lock", title: "Шифрование данных", desc: "Все данные хранятся в зашифрованном виде (AES-256). Ключи шифрования уникальны для каждой учётной записи.", badge: "Активно", ok: true },
-            { icon: "Database", title: "Хранение данных", desc: "Данные хранятся на серверах в России. Передача за рубеж исключена.", badge: "РФ", ok: true },
-            { icon: "EyeOff", title: "Конфиденциальность доверителей", desc: "Персональные данные доверителей доступны только авторизованным пользователям. Третьи лица к данным не допускаются.", badge: "Защищено", ok: true },
+            { icon: "Lock", title: "Шифрование данных", desc: "Все данные хранятся в зашифрованном виде (AES-256). Ключи шифрования уникальны для каждой учётной записи.", badge: "Активно" },
+            { icon: "Database", title: "Хранение данных", desc: "Данные хранятся на серверах в России. Передача за рубеж исключена.", badge: "РФ" },
+            { icon: "EyeOff", title: "Конфиденциальность доверителей", desc: "Персональные данные доверителей доступны только авторизованным пользователям. Третьи лица к данным не допускаются.", badge: "Защищено" },
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">

@@ -4,7 +4,9 @@ import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { InvestigationAction, Deadline, Client } from "./types-and-data";
-import { fetchDeadlines, fetchInvestigations, patchInvestigationDone, fetchClients } from "@/api";
+import { fetchDeadlines, fetchInvestigations, patchInvestigationDone, fetchClients, createDeadline } from "@/api";
+import { getRules, subscribeRules } from "./appeal-rules-store";
+import type { AppealRule } from "./appeal-rules-store";
 
 function toInvestigation(r: any): InvestigationAction {
   return { id: r.id, client: r.client, action: r.action, date: r.date, location: r.location, done: r.done, type: r.type };
@@ -18,14 +20,179 @@ function toClient(r: any): Client {
     investigatorPhone: r.investigator_phone, investigatorOffice: r.investigator_office, agency: r.agency };
 }
 
+// ─── New Deadline Modal ───────────────────────────────────────────────────────
+
+function NewDeadlineModal({
+  rules,
+  onClose,
+  onCreated,
+}: {
+  rules: AppealRule[];
+  onClose: () => void;
+  onCreated: (d: Deadline) => void;
+}) {
+  const [selectedRuleId, setSelectedRuleId] = useState(rules[0]?.id ?? "");
+  const [client, setClient] = useState("");
+  const [eventDate, setEventDate] = useState(""); // дата приговора / заключения
+  const [customDays, setCustomDays] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+
+  const selectedRule = rules.find(r => r.id === selectedRuleId) ?? rules[0];
+
+  // При смене правила — сбрасываем кастомные дни
+  const handleRuleChange = (id: string) => {
+    setSelectedRuleId(id);
+    setCustomDays("");
+  };
+
+  // Считаем итоговые дни
+  const days = customDays !== "" ? parseInt(customDays) || selectedRule?.days : selectedRule?.days;
+
+  // Вычисляем дату дедлайна и оставшиеся дни
+  const computedDeadline = (() => {
+    if (!eventDate || !days) return null;
+    const [d, m, y] = eventDate.split(".").map(Number);
+    if (!d || !m || !y) return null;
+    const base = new Date(y, m - 1, d);
+    const deadline = new Date(base);
+    deadline.setDate(deadline.getDate() + days);
+    const today = new Date(2026, 3, 9); // 09.04.2026 — текущая дата системы
+    const daysLeft = Math.ceil((deadline.getTime() - today.getTime()) / 86400000);
+    const dateStr = `${String(deadline.getDate()).padStart(2, "0")}.${String(deadline.getMonth() + 1).padStart(2, "0")}.${deadline.getFullYear()}`;
+    return { date: dateStr, daysLeft };
+  })();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!client.trim() || !eventDate.trim() || !computedDeadline) return;
+    setSaving(true);
+    try {
+      const raw = await createDeadline({
+        title: selectedRule.label,
+        client: client.trim(),
+        daysLeft: computedDeadline.daysLeft,
+        type: selectedRule.deadlineType,
+        date: computedDeadline.date,
+      });
+      onCreated(toDeadline(raw));
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls = "w-full text-sm text-foreground bg-secondary border border-border rounded px-3 py-2 focus:outline-none focus:border-[hsl(var(--primary))] transition-colors font-ibm";
+  const labelCls = "text-xs text-muted-foreground font-semibold uppercase tracking-wider";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
+      <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-xl overflow-hidden animate-fade-in max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <h3 className="font-golos font-bold text-base text-foreground">Добавить срок обжалования</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <Icon name="X" size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
+          {/* Тип основания */}
+          <div className="space-y-1">
+            <p className={labelCls}>Основание *</p>
+            <select className={inputCls} value={selectedRuleId} onChange={e => handleRuleChange(e.target.value)}>
+              {rules.map(r => (
+                <option key={r.id} value={r.id}>{r.label}</option>
+              ))}
+            </select>
+            {selectedRule && (
+              <p className="text-[10px] text-muted-foreground italic">{selectedRule.basis}</p>
+            )}
+          </div>
+
+          {/* Доверитель */}
+          <div className="space-y-1">
+            <p className={labelCls}>Доверитель *</p>
+            <input
+              className={inputCls}
+              placeholder="Иванов А.В."
+              value={client}
+              onChange={e => setClient(e.target.value)}
+            />
+          </div>
+
+          {/* Дата события */}
+          <div className="space-y-1">
+            <p className={labelCls}>Дата приговора / события *</p>
+            <input
+              className={inputCls}
+              placeholder="09.04.2026"
+              value={eventDate}
+              onChange={e => setEventDate(e.target.value)}
+            />
+            <p className="text-[10px] text-muted-foreground">Формат: ДД.ММ.ГГГГ</p>
+          </div>
+
+          {/* Срок — из настроек, редактируемый */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <p className={labelCls}>Срок (дней)</p>
+              <span className="text-[10px] text-muted-foreground">из настроек: {selectedRule?.days} дн.</span>
+            </div>
+            <input
+              type="number"
+              min="1"
+              max="365"
+              className={inputCls}
+              placeholder={String(selectedRule?.days ?? 3)}
+              value={customDays}
+              onChange={e => setCustomDays(e.target.value)}
+            />
+            <p className="text-[10px] text-muted-foreground">Оставьте пустым, чтобы использовать значение из настроек</p>
+          </div>
+
+          {/* Предпросмотр результата */}
+          {computedDeadline && client.trim() && (
+            <div className={`rounded-lg p-3 flex items-start gap-2 ${computedDeadline.daysLeft <= 2 ? "bg-red-50 border border-red-200" : computedDeadline.daysLeft <= 7 ? "bg-amber-50 border border-amber-200" : "bg-emerald-50 border border-emerald-200"}`}>
+              <Icon name="CalendarCheck" size={15} className={`shrink-0 mt-0.5 ${computedDeadline.daysLeft <= 2 ? "text-red-500" : computedDeadline.daysLeft <= 7 ? "text-amber-600" : "text-emerald-600"}`} />
+              <div className="text-xs">
+                <p className="font-semibold text-foreground">Срок истекает: {computedDeadline.date}</p>
+                <p className="text-muted-foreground mt-0.5">
+                  {computedDeadline.daysLeft <= 0
+                    ? "Срок уже истёк"
+                    : computedDeadline.daysLeft === 1
+                    ? "Завтра"
+                    : `Осталось ${computedDeadline.daysLeft} дней`}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-1">
+            <Button
+              type="submit"
+              disabled={saving || !client.trim() || !eventDate.trim() || !computedDeadline}
+              className="flex-1 bg-[hsl(var(--primary))] text-white text-sm"
+            >
+              {saving ? "Сохранение..." : "Добавить срок"}
+            </Button>
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1 text-sm">Отмена</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Deadlines ────────────────────────────────────────────────────────────────
 
 export function DeadlinesSection() {
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rules, setRulesState] = useState<AppealRule[]>(getRules());
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     fetchDeadlines().then(d => setDeadlines(d.map(toDeadline))).finally(() => setLoading(false));
+    return subscribeRules(() => setRulesState(getRules()));
   }, []);
 
   const urgencyColor = (d: number) => d <= 2 ? "status-urgent" : d <= 7 ? "status-paid" : "status-normal";
@@ -36,10 +203,18 @@ export function DeadlinesSection() {
   if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
 
   return (
+    <>
+    {showForm && (
+      <NewDeadlineModal
+        rules={rules}
+        onClose={() => setShowForm(false)}
+        onCreated={d => setDeadlines(prev => [...prev, d])}
+      />
+    )}
     <div className="space-y-4 lg:space-y-5 animate-fade-in">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="font-golos font-bold text-xl text-foreground">Сроки обжалования</h2>
-        <Button className="bg-[hsl(var(--primary))] text-white text-sm self-start sm:self-auto">
+        <Button onClick={() => setShowForm(true)} className="bg-[hsl(var(--primary))] text-white text-sm self-start sm:self-auto">
           <Icon name="Plus" size={15} className="mr-1.5" /> Добавить срок
         </Button>
       </div>
@@ -100,6 +275,7 @@ export function DeadlinesSection() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 
