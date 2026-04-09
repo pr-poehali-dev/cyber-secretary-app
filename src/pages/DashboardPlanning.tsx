@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { taskTypeConfig } from "./types-and-data";
 import type { Task, Client, Deadline } from "./types-and-data";
-import { fetchTasks, patchTaskDone, fetchClients, fetchDeadlines } from "@/api";
+import { fetchTasks, patchTaskDone, createTask, fetchClients, fetchDeadlines } from "@/api";
 
 function toTask(r: any): Task {
   return {
@@ -128,9 +128,88 @@ export function DashboardSection() {
 
 // ─── Planning ─────────────────────────────────────────────────────────────────
 
+// ─── New Task Form ────────────────────────────────────────────────────────────
+
+const emptyTaskForm = { title: "", type: "task" as Task["type"], time: "09:00", client: "", urgent: false };
+
+function NewTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: (t: Task) => void }) {
+  const [form, setForm] = useState(emptyTaskForm);
+  const [saving, setSaving] = useState(false);
+
+  const set = (k: keyof typeof emptyTaskForm) => (v: string | boolean) =>
+    setForm(prev => ({ ...prev, [k]: v }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.title.trim() || !form.client.trim()) return;
+    setSaving(true);
+    try {
+      const raw = await createTask({ ...form, taskDate: "09.04.2026" });
+      onCreated(toTask(raw));
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls = "w-full text-sm text-foreground bg-secondary border border-border rounded px-3 py-2 focus:outline-none focus:border-[hsl(var(--primary))] transition-colors font-ibm";
+  const labelCls = "text-xs text-muted-foreground font-semibold uppercase tracking-wider";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
+      <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-xl overflow-hidden animate-fade-in">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h3 className="font-golos font-bold text-base text-foreground">Новая задача</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <Icon name="X" size={18} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div className="space-y-1">
+            <p className={labelCls}>Название *</p>
+            <input className={inputCls} placeholder="Опишите задачу" value={form.title} onChange={e => set("title")(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <p className={labelCls}>Тип</p>
+              <select className={inputCls} value={form.type} onChange={e => set("type")(e.target.value)}>
+                <option value="task">Задача</option>
+                <option value="court">Суд</option>
+                <option value="investigation">Следственное</option>
+                <option value="reminder">Напоминание</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <p className={labelCls}>Время</p>
+              <input type="time" className={inputCls} value={form.time} onChange={e => set("time")(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <p className={labelCls}>Доверитель *</p>
+            <input className={inputCls} placeholder="Фамилия И.О." value={form.client} onChange={e => set("client")(e.target.value)} />
+          </div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" checked={form.urgent} onChange={e => set("urgent")(e.target.checked)}
+              className="w-4 h-4 rounded border-border accent-[hsl(var(--primary))]" />
+            <span className="text-sm font-ibm text-foreground">Срочная задача</span>
+          </label>
+          <div className="flex gap-2 pt-1">
+            <Button type="submit" disabled={saving || !form.title.trim() || !form.client.trim()}
+              className="flex-1 bg-[hsl(var(--primary))] text-white text-sm">
+              {saving ? "Сохранение..." : "Добавить задачу"}
+            </Button>
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1 text-sm">Отмена</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export function PlanningSection() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     fetchTasks("09.04.2026")
@@ -148,13 +227,15 @@ export function PlanningSection() {
   if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
 
   return (
+    <>
+    {showForm && <NewTaskModal onClose={() => setShowForm(false)} onCreated={t => setTasks(prev => [...prev, t])} />}
     <div className="space-y-4 lg:space-y-6 animate-fade-in">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-golos font-bold text-xl text-foreground">Планирование дня</h2>
           <p className="text-sm text-muted-foreground mt-0.5">9 апреля 2026 — среда</p>
         </div>
-        <Button className="bg-[hsl(var(--primary))] text-white text-sm self-start sm:self-auto">
+        <Button onClick={() => setShowForm(true)} className="bg-[hsl(var(--primary))] text-white text-sm self-start sm:self-auto">
           <Icon name="Plus" size={15} className="mr-1.5" /> Добавить задачу
         </Button>
       </div>
@@ -202,5 +283,6 @@ export function PlanningSection() {
         );
       })}
     </div>
+    </>
   );
 }
