@@ -4,7 +4,7 @@ import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { InvestigationAction, Deadline, Client } from "./types-and-data";
-import { fetchDeadlines, fetchInvestigations, patchInvestigationDone, fetchClients, createDeadline } from "@/api";
+import { fetchDeadlines, fetchInvestigations, patchInvestigationDone, fetchClients, createDeadline, createInvestigation } from "@/api";
 import { getRules, subscribeRules } from "./appeal-rules-store";
 import type { AppealRule } from "./appeal-rules-store";
 
@@ -279,14 +279,153 @@ export function DeadlinesSection() {
   );
 }
 
+// ─── New Investigation Modal ──────────────────────────────────────────────────
+
+const INV_TYPES: InvestigationAction["type"][] = ["допрос", "обыск", "очная ставка", "экспертиза", "ознакомление"];
+
+function NewInvestigationModal({
+  clients,
+  onClose,
+  onCreated,
+}: {
+  clients: Client[];
+  onClose: () => void;
+  onCreated: (a: InvestigationAction) => void;
+}) {
+  const [clientId, setClientId] = useState<string>(clients[0]?.id ? String(clients[0].id) : "");
+  const [type, setType] = useState<InvestigationAction["type"]>("допрос");
+  const [action, setAction] = useState("");
+  const [date, setDate] = useState("");
+  const [location, setLocation] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const selectedClient = clients.find(c => String(c.id) === clientId);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedClient || !action.trim() || !date.trim()) return;
+    setSaving(true);
+    try {
+      const raw = await createInvestigation({
+        client: selectedClient.name,
+        action: action.trim(),
+        date: date.trim(),
+        location: location.trim(),
+        done: false,
+        type,
+      });
+      onCreated(toInvestigation(raw));
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputCls = "w-full text-sm text-foreground bg-secondary border border-border rounded px-3 py-2 focus:outline-none focus:border-[hsl(var(--primary))] transition-colors font-ibm";
+  const labelCls = "text-xs text-muted-foreground font-semibold uppercase tracking-wider";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
+      <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-xl overflow-hidden animate-fade-in max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <h3 className="font-golos font-bold text-base text-foreground">Новое следственное действие</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+            <Icon name="X" size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
+          {/* Доверитель */}
+          <div className="space-y-1">
+            <p className={labelCls}>Доверитель *</p>
+            <select className={inputCls} value={clientId} onChange={e => setClientId(e.target.value)}>
+              {clients.map(c => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.name} — дело {c.caseNumber}
+                </option>
+              ))}
+            </select>
+            {selectedClient && (
+              <p className="text-[10px] text-muted-foreground">{selectedClient.category}</p>
+            )}
+          </div>
+
+          {/* Тип действия */}
+          <div className="space-y-1">
+            <p className={labelCls}>Тип действия *</p>
+            <select className={inputCls} value={type} onChange={e => setType(e.target.value as InvestigationAction["type"])}>
+              {INV_TYPES.map(t => (
+                <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Описание */}
+          <div className="space-y-1">
+            <p className={labelCls}>Описание *</p>
+            <input
+              className={inputCls}
+              placeholder="Допрос обвиняемого по эпизоду №2"
+              value={action}
+              onChange={e => setAction(e.target.value)}
+            />
+          </div>
+
+          {/* Дата */}
+          <div className="space-y-1">
+            <p className={labelCls}>Дата *</p>
+            <input
+              className={inputCls}
+              placeholder="15.04.2026"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+            />
+            <p className="text-[10px] text-muted-foreground">Формат: ДД.ММ.ГГГГ</p>
+          </div>
+
+          {/* Место */}
+          <div className="space-y-1">
+            <p className={labelCls}>Место проведения</p>
+            <input
+              className={inputCls}
+              placeholder="СК по ЦАО, каб. 214"
+              value={location}
+              onChange={e => setLocation(e.target.value)}
+            />
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <Button
+              type="submit"
+              disabled={saving || !clientId || !action.trim() || !date.trim()}
+              className="flex-1 bg-[hsl(var(--primary))] text-white text-sm"
+            >
+              {saving ? "Сохранение..." : "Добавить действие"}
+            </Button>
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1 text-sm">Отмена</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Investigations ───────────────────────────────────────────────────────────
 
 export function InvestigationsSection() {
   const [actions, setActions] = useState<InvestigationAction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
-    fetchInvestigations().then(d => setActions(d.map(toInvestigation))).finally(() => setLoading(false));
+    Promise.all([
+      fetchInvestigations(),
+      fetchClients(),
+    ]).then(([inv, cl]) => {
+      setActions(inv.map(toInvestigation));
+      setClients(cl.map(toClient));
+    }).finally(() => setLoading(false));
   }, []);
 
   const toggleDone = async (id: number, current: boolean) => {
@@ -308,10 +447,18 @@ export function InvestigationsSection() {
   if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
 
   return (
+    <>
+    {showForm && (
+      <NewInvestigationModal
+        clients={clients}
+        onClose={() => setShowForm(false)}
+        onCreated={a => setActions(prev => [a, ...prev])}
+      />
+    )}
     <div className="space-y-4 lg:space-y-5 animate-fade-in">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="font-golos font-bold text-xl text-foreground">Следственные действия</h2>
-        <Button className="bg-[hsl(var(--primary))] text-white text-sm self-start sm:self-auto">
+        <Button onClick={() => setShowForm(true)} className="bg-[hsl(var(--primary))] text-white text-sm self-start sm:self-auto">
           <Icon name="Plus" size={15} className="mr-1.5" /> Добавить действие
         </Button>
       </div>
@@ -382,6 +529,7 @@ export function InvestigationsSection() {
         </div>
       )}
     </div>
+    </>
   );
 }
 
