@@ -428,6 +428,8 @@ export function InvestigationsSection() {
     }).finally(() => setLoading(false));
   }, []);
 
+  const [filterClientId, setFilterClientId] = useState<number | null>(null);
+
   const toggleDone = async (id: number, current: boolean) => {
     const updated = await patchInvestigationDone(id, !current);
     setActions(prev => prev.map(a => a.id === id ? { ...a, done: updated.done } : a));
@@ -441,8 +443,15 @@ export function InvestigationsSection() {
     "ознакомление": "bg-amber-50 text-amber-700 border-amber-200",
   };
 
-  const pending = actions.filter(a => !a.done);
-  const done = actions.filter(a => a.done);
+  const filtered = filterClientId
+    ? actions.filter(a => {
+        const c = clients.find(cl => cl.id === filterClientId);
+        return c ? a.client === c.name : true;
+      })
+    : actions;
+
+  const pending = filtered.filter(a => !a.done);
+  const done = filtered.filter(a => a.done);
 
   if (loading) return <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>;
 
@@ -463,10 +472,35 @@ export function InvestigationsSection() {
         </Button>
       </div>
 
+      {/* Фильтр по доверителю */}
+      <div className="flex gap-1.5 flex-wrap">
+        <button
+          onClick={() => setFilterClientId(null)}
+          className={`px-3 py-1.5 rounded text-xs sm:text-sm font-ibm transition-all ${filterClientId === null ? "bg-[hsl(var(--primary))] text-white" : "bg-white border border-border text-foreground hover:bg-secondary"}`}
+        >
+          Все <span className="ml-1 opacity-60">{actions.length}</span>
+        </button>
+        {clients
+          .filter(c => actions.some(a => a.client === c.name))
+          .map(c => {
+            const count = actions.filter(a => a.client === c.name).length;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setFilterClientId(c.id)}
+                className={`px-3 py-1.5 rounded text-xs sm:text-sm font-ibm transition-all ${filterClientId === c.id ? "bg-[hsl(var(--primary))] text-white" : "bg-white border border-border text-foreground hover:bg-secondary"}`}
+              >
+                {c.name.split(" ")[0]} {c.name.split(" ")[1]?.[0]}.{c.name.split(" ")[2]?.[0] ? c.name.split(" ")[2][0] + "." : ""}
+                <span className="ml-1 opacity-60">{count}</span>
+              </button>
+            );
+          })}
+      </div>
+
       {/* Stats — 3 cols, compact on mobile */}
       <div className="grid grid-cols-3 gap-2 lg:gap-3">
         {[
-          { label: "Всего", value: actions.length, color: "text-foreground" },
+          { label: "Всего", value: filtered.length, color: "text-foreground" },
           { label: "Предстоит", value: pending.length, color: "text-amber-600" },
           { label: "Завершено", value: done.length, color: "text-emerald-600" },
         ].map((s, i) => (
@@ -485,6 +519,9 @@ export function InvestigationsSection() {
           <span className="ml-auto text-xs text-muted-foreground">{pending.length}</span>
         </div>
         <div className="divide-y divide-border">
+          {pending.length === 0 && (
+            <p className="px-4 lg:px-5 py-6 text-sm text-muted-foreground text-center font-ibm">Нет предстоящих действий</p>
+          )}
           {pending.map(a => (
             <div key={a.id} className="flex items-start gap-3 px-3 lg:px-5 py-3 lg:py-3.5">
               <Checkbox checked={a.done} onCheckedChange={() => toggleDone(a.id, a.done)} className="mt-0.5 shrink-0" />
