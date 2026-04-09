@@ -4,7 +4,7 @@ import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { fetchClients, fetchInvestigationsByClient } from "@/api";
-import type { Client } from "./types-and-data";
+import type { ClientWithHistory } from "./client-shared";
 import { toClient } from "./client-shared";
 import { generatePetitionPdf, generatePetitionHtml } from "./petition-generators";
 import type { PetitionItem } from "./petition-generators";
@@ -28,7 +28,7 @@ const EXTRA_ITEMS = [
 // ─── PetitionsSection ─────────────────────────────────────────────────────────
 
 export function PetitionsSection() {
-  const [clients, setClients] = useState<Client[]>([]);
+  const [clients, setClients] = useState<ClientWithHistory[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [items, setItems] = useState<PetitionItem[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);

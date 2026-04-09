@@ -93,9 +93,9 @@ function buildDocumentBody(client: Client, items: PetitionItem[], total: number,
   <table style="width:100%;border-collapse:collapse;margin:${forWord ? "12pt 0" : "16px 0"};">
     <thead>
       <tr style="background:#f3f4f6;">
-        <th style="${forWord ? "border:1px solid #ccc;" : "border-bottom:2px solid #d1d5db;"}padding:8px 12px;text-align:center;font-size:12px;width:40px;">№</th>
-        <th style="${forWord ? "border:1px solid #ccc;" : "border-bottom:2px solid #d1d5db;"}padding:8px 12px;text-align:left;font-size:12px;">Наименование действия</th>
-        <th style="${forWord ? "border:1px solid #ccc;" : "border-bottom:2px solid #d1d5db;"}padding:8px 12px;text-align:right;font-size:12px;width:130px;">Сумма</th>
+        <th style="${forWord ? "border:1px solid #ccc;" : "border-bottom:2px solid #d1d5db;"} padding:8px 12px;text-align:center;font-size:12px;width:40px;">№</th>
+        <th style="${forWord ? "border:1px solid #ccc;" : "border-bottom:2px solid #d1d5db;"} padding:8px 12px;text-align:left;font-size:12px;">Наименование действия</th>
+        <th style="${forWord ? "border:1px solid #ccc;" : "border-bottom:2px solid #d1d5db;"} padding:8px 12px;text-align:right;font-size:12px;width:130px;">Сумма</th>
       </tr>
     </thead>
     <tbody>
