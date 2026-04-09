@@ -43,7 +43,7 @@ def verify_password(password: str, stored: str) -> bool:
 def get_user_by_token(conn, token: str):
     with conn.cursor(cursor_factory=RealDictCursor) as cur:
         cur.execute(f"""
-            SELECT u.id, u.email, u.full_name, u.notify_email, u.notify_days_before
+            SELECT u.id, u.email, u.full_name, u.notify_email, u.notify_days_before, u.is_admin
             FROM {SCHEMA}.sessions s
             JOIN {SCHEMA}.users u ON u.id = s.user_id
             WHERE s.token = %s AND s.expires_at > NOW()
@@ -93,9 +93,15 @@ def handler(event: dict, context) -> dict:
 
                 cur.execute(f"""
                     INSERT INTO {SCHEMA}.users (email, password_hash, full_name, notify_email)
-                    VALUES (%s, %s, %s, %s) RETURNING id, email, full_name, notify_email, notify_days_before
+                    VALUES (%s, %s, %s, %s) RETURNING id, email, full_name, notify_email, notify_days_before, is_admin
                 """, (email, pw_hash, full_name, email))
                 user = dict(cur.fetchone())
+
+                # Создаём trial-подписку
+                cur.execute(f"""
+                    INSERT INTO {SCHEMA}.subscriptions(user_id, status, trial_started_at)
+                    VALUES (%s, 'trial', NOW()) ON CONFLICT (user_id) DO NOTHING
+                """, (user["id"],))
 
                 token = secrets.token_urlsafe(32)
                 cur.execute(f"""
@@ -117,7 +123,7 @@ def handler(event: dict, context) -> dict:
         with get_conn() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(f"""
-                    SELECT id, email, full_name, notify_email, notify_days_before, password_hash
+                    SELECT id, email, full_name, notify_email, notify_days_before, is_admin, password_hash
                     FROM {SCHEMA}.users WHERE email = %s
                 """, (email,))
                 user = cur.fetchone()

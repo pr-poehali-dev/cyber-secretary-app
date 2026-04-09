@@ -1,0 +1,28 @@
+{
+  "tests": [
+    {
+      "name": "Public settings",
+      "method": "GET",
+      "path": "/settings",
+      "expectedStatus": 200,
+      "expectedBody": {"price_rub": 990},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Status requires auth",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 401,
+      "expectedBody": {"error": "Не авторизован"},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Admin requires auth",
+      "method": "GET",
+      "path": "/admin/users",
+      "expectedStatus": 401,
+      "expectedBody": {"error": "Не авторизован"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

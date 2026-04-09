@@ -5,10 +5,12 @@ import { DashboardSection, PlanningSection } from "./DashboardPlanning";
 import { ClientsSection, PetitionsSection } from "./ClientsPetitions";
 import { DeadlinesSection, InvestigationsSection, AnalyticsSection } from "./DeadlinesInvestigationsAnalytics";
 import { SettingsSection } from "./Settings";
+import { SubscriptionWall } from "./SubscriptionWall";
+import { AdminPanel } from "./AdminPanel";
 import type { Section } from "./types-and-data";
 import type { User } from "@/auth";
 import { apiLogout } from "@/auth";
-import { fetchTasks, fetchDeadlines } from "@/api";
+import { fetchTasks, fetchDeadlines, fetchSubscriptionStatus, fetchBillingSettings } from "@/api";
 
 // ─── Nav items ────────────────────────────────────────────────────────────────
 
@@ -35,15 +37,29 @@ interface IndexProps {
 
 const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
   const [section, setSection] = useState<Section>("dashboard");
+  const [adminView, setAdminView] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [urgentCount, setUrgentCount] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
 
+  // Subscription state
+  const [subStatus, setSubStatus] = useState<any>(null);
+  const [billingSettings, setBillingSettings] = useState<any>(null);
+  const [subLoading, setSubLoading] = useState(true);
+
   useEffect(() => {
-    Promise.all([
-      fetchTasks("09.04.2026"),
-      fetchDeadlines(),
-    ]).then(([tasks, deadlines]) => {
+    // Проверка подписки
+    fetchSubscriptionStatus().then(s => {
+      setSubStatus(s);
+    }).catch(() => {
+      setSubStatus({ has_access: true }); // fallback — не блокируем при ошибке сети
+    }).finally(() => setSubLoading(false));
+
+    // Настройки биллинга
+    fetchBillingSettings().then(s => setBillingSettings(s)).catch(() => {});
+
+    // Срочные задачи
+    Promise.all([fetchTasks("09.04.2026"), fetchDeadlines()]).then(([tasks, deadlines]) => {
       const u = tasks.filter((t: any) => t.urgent && !t.done).length
               + deadlines.filter((d: any) => d.days_left <= 2).length;
       setUrgentCount(u);
@@ -52,6 +68,7 @@ const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
 
   const handleNav = (key: Section) => {
     setSection(key);
+    setAdminView(false);
     setSidebarOpen(false);
   };
 
@@ -62,8 +79,35 @@ const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
   };
 
   const displayName = user.full_name || user.email.split("@")[0];
+  const isAdmin = subStatus?.is_admin ?? false;
+
+  // Ждём проверки подписки
+  if (subLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "hsl(var(--accent))" }}>
+            <Icon name="Scale" size={20} style={{ color: "hsl(222 45% 12%)" }} />
+          </div>
+          <p className="text-sm text-muted-foreground font-ibm">Загрузка...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Блокировка — нет доступа и не загружается
+  if (subStatus && !subStatus.has_access) {
+    return (
+      <SubscriptionWall
+        status={subStatus.status}
+        settings={billingSettings ?? { price_rub: 990, period_days: 30, payment_info: "" }}
+        onLogout={handleLogout}
+      />
+    );
+  }
 
   const renderSection = () => {
+    if (adminView) return <AdminPanel />;
     switch (section) {
       case "dashboard": return <DashboardSection />;
       case "planning": return <PlanningSection />;
@@ -75,6 +119,10 @@ const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
       case "settings": return <SettingsSection user={user} onUserUpdate={onUserUpdate} />;
     }
   };
+
+  const currentLabel = adminView
+    ? "Панель администратора"
+    : navItems.find(n => n.key === section)?.label;
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -108,11 +156,24 @@ const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
           </button>
         </div>
 
+        {/* Subscription badge */}
+        {subStatus && (
+          <div className="px-3 py-2 border-b" style={{ borderColor: "hsl(222 38% 22%)" }}>
+            <div className={`text-[10px] font-ibm px-2 py-1 rounded text-center ${
+              subStatus.status === "free" ? "bg-emerald-900 text-emerald-300" :
+              subStatus.status === "active" ? "bg-blue-900 text-blue-300" :
+              "bg-amber-900 text-amber-300"
+            }`}>
+              {subStatus.expires_label}
+            </div>
+          </div>
+        )}
+
         {/* Nav */}
         <nav className="flex-1 py-3 space-y-0.5 px-2 overflow-y-auto">
           {navItems.map(item => (
             <button key={item.key} onClick={() => handleNav(item.key as Section)}
-              className={`w-full flex items-center gap-3 px-2.5 py-3 lg:py-2.5 rounded text-sm transition-all nav-item ${section === item.key ? "nav-item-active" : "text-blue-200"}`}>
+              className={`w-full flex items-center gap-3 px-2.5 py-3 lg:py-2.5 rounded text-sm transition-all nav-item ${!adminView && section === item.key ? "nav-item-active" : "text-blue-200"}`}>
               <Icon name={item.icon} size={18} className="shrink-0" />
               <span className="font-ibm text-xs leading-tight">{item.label}</span>
               {item.key === "deadlines" && urgentCount > 0 && (
@@ -120,6 +181,17 @@ const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
               )}
             </button>
           ))}
+
+          {/* Admin button */}
+          {isAdmin && (
+            <button
+              onClick={() => { setAdminView(true); setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-2.5 py-3 lg:py-2.5 rounded text-sm transition-all nav-item mt-2 ${adminView ? "nav-item-active" : "text-purple-300 hover:text-white"}`}
+            >
+              <Icon name="ShieldCheck" size={18} className="shrink-0" />
+              <span className="font-ibm text-xs leading-tight">Администрирование</span>
+            </button>
+          )}
         </nav>
 
         {/* User footer */}
@@ -135,7 +207,7 @@ const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
             <div className="flex items-center gap-1 shrink-0">
               <button
                 onClick={() => handleNav("settings")}
-                className={`transition-colors p-1 rounded ${section === "settings" ? "text-[hsl(var(--accent))]" : "text-blue-300 hover:text-white"}`}
+                className={`transition-colors p-1 rounded ${!adminView && section === "settings" ? "text-[hsl(var(--accent))]" : "text-blue-300 hover:text-white"}`}
                 title="Настройки"
               >
                 <Icon name="Settings" size={14} />
@@ -162,7 +234,7 @@ const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
           </button>
 
           <h1 className="font-golos font-semibold text-sm text-foreground truncate">
-            {navItems.find(n => n.key === section)?.label}
+            {currentLabel}
           </h1>
 
           <div className="ml-auto flex items-center gap-2 shrink-0">
@@ -176,7 +248,6 @@ const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
                 <span>{urgentCount}</span>
               </div>
             )}
-            {/* Logout — header mobile */}
             <button
               onClick={handleLogout}
               disabled={loggingOut}
@@ -198,22 +269,19 @@ const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
           {navItems.slice(0, 5).map(item => (
             <button
               key={item.key}
-              onClick={() => setSection(item.key as Section)}
-              className={`flex-1 flex flex-col items-center py-2 gap-0.5 text-[10px] font-ibm transition-colors relative ${section === item.key ? "text-[hsl(var(--primary))]" : "text-muted-foreground"}`}
+              onClick={() => { setSection(item.key as Section); setAdminView(false); }}
+              className={`flex-1 flex flex-col items-center gap-0.5 py-2 text-[10px] transition-colors ${!adminView && section === item.key ? "text-[hsl(var(--primary))]" : "text-muted-foreground"}`}
             >
               <Icon name={item.icon} size={18} />
-              <span className="leading-tight truncate w-full text-center px-0.5">{item.label.split(" ")[0]}</span>
-              {item.key === "deadlines" && urgentCount > 0 && (
-                <span className="absolute top-1 right-1/4 w-2 h-2 bg-red-500 rounded-full" />
-              )}
+              <span className="font-ibm leading-tight">{item.label.split(" ")[0]}</span>
             </button>
           ))}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="flex-1 flex flex-col items-center py-2 gap-0.5 text-[10px] font-ibm text-muted-foreground"
+            className="flex-1 flex flex-col items-center gap-0.5 py-2 text-[10px] text-muted-foreground"
           >
             <Icon name="Menu" size={18} />
-            <span>Ещё</span>
+            <span className="font-ibm">Ещё</span>
           </button>
         </nav>
       </main>
