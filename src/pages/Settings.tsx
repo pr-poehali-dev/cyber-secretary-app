@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { getRules, setRules as storeSetRules, subscribeRules } from "./appeal-rules-store";
 import type { AppealRule } from "./appeal-rules-store";
 
+const NOTIFY_URL = "https://functions.poehali.dev/f2fb4c5c-3848-4fe1-b5f6-727a2a12636a";
+
 // ─── Настройки уведомлений ────────────────────────────────────────────────────
 
 interface NotifSetting {
@@ -21,17 +23,49 @@ const DEFAULT_NOTIF: NotifSetting[] = [
   { id: "reminder_7", label: "За 7 дней", description: "Недельное предупреждение", enabled: false, daysBefore: 7 },
 ];
 
+// ─── Email helpers ────────────────────────────────────────────────────────────
+
+const LS_EMAIL_KEY = "lexdesk_notify_email";
+const LS_NOTIF_KEY = "lexdesk_notif_settings";
+
+function loadEmail(): string {
+  return localStorage.getItem(LS_EMAIL_KEY) ?? "";
+}
+
+function saveEmail(email: string) {
+  localStorage.setItem(LS_EMAIL_KEY, email);
+}
+
+function loadNotifs(): NotifSetting[] {
+  try {
+    const raw = localStorage.getItem(LS_NOTIF_KEY);
+    return raw ? JSON.parse(raw) : DEFAULT_NOTIF;
+  } catch {
+    return DEFAULT_NOTIF;
+  }
+}
+
+function saveNotifs(n: NotifSetting[]) {
+  localStorage.setItem(LS_NOTIF_KEY, JSON.stringify(n));
+}
+
 // ─── Компонент ────────────────────────────────────────────────────────────────
 
 export function SettingsSection() {
   const [rules, setRulesState] = useState<AppealRule[]>(getRules());
-  const [notifs, setNotifs] = useState<NotifSetting[]>(DEFAULT_NOTIF);
+  const [notifs, setNotifs] = useState<NotifSetting[]>(loadNotifs());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDays, setEditDays] = useState<string>("");
   const [saved, setSaved] = useState(false);
 
-  // Подписываемся на изменения store из других компонентов
+  // Email
+  const [email, setEmail] = useState(loadEmail());
+  const [testStatus, setTestStatus] = useState<"idle" | "sending" | "ok" | "error">("idle");
+  const [testMsg, setTestMsg] = useState("");
+
   useEffect(() => subscribeRules(() => setRulesState(getRules())), []);
+
+  // ── Сроки обжалования ──────────────────────────────────────────────────────
 
   const startEdit = (rule: AppealRule) => {
     setEditingId(rule.id);
@@ -43,23 +77,61 @@ export function SettingsSection() {
     if (!isNaN(days) && days > 0) {
       const updated = rules.map(r => r.id === id ? { ...r, days } : r);
       setRulesState(updated);
-      storeSetRules(updated); // синхронизируем глобальный store
+      storeSetRules(updated);
     }
     setEditingId(null);
   };
 
   const cancelEdit = () => setEditingId(null);
 
+  // ── Уведомления ────────────────────────────────────────────────────────────
+
   const toggleNotif = (id: string) =>
     setNotifs(prev => prev.map(n => n.id === id ? { ...n, enabled: !n.enabled } : n));
 
+  // ── Сохранить всё ──────────────────────────────────────────────────────────
+
   const handleSave = () => {
-    storeSetRules(rules); // финальная синхронизация при нажатии Сохранить
+    storeSetRules(rules);
+    saveEmail(email);
+    saveNotifs(notifs);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
+  // ── Тестовое письмо ────────────────────────────────────────────────────────
+
+  const handleTestEmail = async () => {
+    if (!email.trim()) {
+      setTestMsg("Введите email перед отправкой");
+      setTestStatus("error");
+      return;
+    }
+    setTestStatus("sending");
+    setTestMsg("");
+    try {
+      const res = await fetch(NOTIFY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), test: true }),
+      });
+      const data = await res.json();
+      if (res.ok && data.sent) {
+        setTestStatus("ok");
+        setTestMsg(`Письмо отправлено на ${email}`);
+      } else {
+        setTestStatus("error");
+        setTestMsg(data.error ?? "Ошибка отправки");
+      }
+    } catch {
+      setTestStatus("error");
+      setTestMsg("Не удалось связаться с сервером");
+    }
+    setTimeout(() => setTestStatus("idle"), 5000);
+  };
+
   const inputCls = "w-20 text-sm text-foreground bg-white border border-border rounded px-2 py-1 focus:outline-none focus:border-[hsl(var(--primary))] transition-colors font-ibm text-center";
+  const inputFullCls = "w-full text-sm text-foreground bg-secondary border border-border rounded px-3 py-2 focus:outline-none focus:border-[hsl(var(--primary))] transition-colors font-ibm";
 
   return (
     <div className="space-y-6 animate-fade-in max-w-2xl">
@@ -71,6 +143,106 @@ export function SettingsSection() {
             : <><Icon name="Save" size={14} className="mr-1.5" />Сохранить</>
           }
         </Button>
+      </div>
+
+      {/* ── Email-уведомления ───────────────────────────────────────────────── */}
+      <div className="bg-white rounded-lg border border-border overflow-hidden">
+        <div className="px-5 py-3.5 border-b border-border flex items-center gap-2">
+          <Icon name="Mail" size={15} className="text-[hsl(var(--accent))]" />
+          <h3 className="font-golos font-semibold text-sm text-foreground">Email-уведомления</h3>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Email-адрес */}
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Адрес для уведомлений</p>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                className={`${inputFullCls} flex-1`}
+                placeholder="advocate@yandex.ru"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+              />
+              <Button
+                onClick={handleTestEmail}
+                disabled={testStatus === "sending"}
+                variant="outline"
+                className="shrink-0 text-sm"
+              >
+                {testStatus === "sending" && <Icon name="Loader" size={14} className="mr-1.5 animate-spin" />}
+                {testStatus === "ok" && <Icon name="Check" size={14} className="mr-1.5 text-emerald-600" />}
+                {testStatus === "error" && <Icon name="AlertCircle" size={14} className="mr-1.5 text-red-500" />}
+                {testStatus === "idle" && <Icon name="Send" size={14} className="mr-1.5" />}
+                {testStatus === "sending" ? "Отправка..." : "Тест"}
+              </Button>
+            </div>
+            {testMsg && (
+              <p className={`text-xs mt-1 ${testStatus === "ok" ? "text-emerald-600" : "text-red-500"}`}>
+                {testMsg}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              На этот адрес будут приходить напоминания о приближающихся сроках обжалования.
+              Нажмите «Тест» чтобы проверить доставку.
+            </p>
+          </div>
+
+          {/* Когда отправлять */}
+          <div className="space-y-1.5">
+            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Когда отправлять</p>
+            <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
+              {notifs.map(n => (
+                <div key={n.id} className="flex items-center gap-4 px-4 py-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-ibm text-sm font-medium text-foreground">{n.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{n.description}</p>
+                  </div>
+                  <button
+                    onClick={() => toggleNotif(n.id)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${n.enabled ? "bg-[hsl(var(--primary))]" : "bg-slate-200"}`}
+                  >
+                    <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${n.enabled ? "translate-x-4" : "translate-x-0.5"}`} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Инструкция по SMTP */}
+          <div className="bg-secondary rounded-lg p-3.5 space-y-2">
+            <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <Icon name="Info" size={13} className="text-muted-foreground" />
+              Настройка почтового сервера
+            </p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Для работы почты добавьте в настройки проекта два секрета:
+            </p>
+            <div className="space-y-1">
+              {[
+                { key: "SMTP_LOGIN", val: "ваш email (advocate@yandex.ru)" },
+                { key: "SMTP_PASSWORD", val: "пароль приложения (не основной пароль)" },
+              ].map(({ key, val }) => (
+                <div key={key} className="flex items-start gap-2 text-xs">
+                  <code className="bg-white border border-border rounded px-1.5 py-0.5 text-foreground font-mono shrink-0">{key}</code>
+                  <span className="text-muted-foreground">{val}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {[
+                { name: "Яндекс", url: "https://id.yandex.ru/security/app-passwords", host: "smtp.yandex.ru:465" },
+                { name: "Gmail", url: "https://myaccount.google.com/apppasswords", host: "smtp.gmail.com:465" },
+                { name: "Mail.ru", url: "https://account.mail.ru/user/2-step-auth/passwords/", host: "smtp.mail.ru:465" },
+              ].map(p => (
+                <a key={p.name} href={p.url} target="_blank" rel="noopener noreferrer"
+                  className="text-[10px] bg-white border border-border rounded px-2 py-1 text-blue-600 hover:text-blue-800 transition-colors">
+                  {p.name} · {p.host}
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Сроки обжалования ──────────────────────────────────────────────── */}
@@ -94,17 +266,10 @@ export function SettingsSection() {
                 {editingId === rule.id ? (
                   <>
                     <input
-                      type="number"
-                      min="1"
-                      max="365"
-                      value={editDays}
+                      type="number" min="1" max="365" value={editDays}
                       onChange={e => setEditDays(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === "Enter") saveEdit(rule.id);
-                        if (e.key === "Escape") cancelEdit();
-                      }}
-                      autoFocus
-                      className={inputCls}
+                      onKeyDown={e => { if (e.key === "Enter") saveEdit(rule.id); if (e.key === "Escape") cancelEdit(); }}
+                      autoFocus className={inputCls}
                     />
                     <span className="text-xs text-muted-foreground">дн.</span>
                     <button onClick={() => saveEdit(rule.id)} className="text-emerald-600 hover:text-emerald-700 transition-colors">
@@ -136,30 +301,6 @@ export function SettingsSection() {
             По умолчанию срок обжалования меры пресечения — <strong>3 дня</strong> с даты вынесения приговора или заключения под стражу (ст. 108 УПК РФ).
             Изменения применяются при добавлении новых сроков.
           </p>
-        </div>
-      </div>
-
-      {/* ── Уведомления ────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-lg border border-border overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-border flex items-center gap-2">
-          <Icon name="Bell" size={15} className="text-[hsl(var(--accent))]" />
-          <h3 className="font-golos font-semibold text-sm text-foreground">Напоминания о сроках</h3>
-        </div>
-        <div className="divide-y divide-border">
-          {notifs.map(n => (
-            <div key={n.id} className="flex items-center gap-4 px-5 py-4">
-              <div className="flex-1 min-w-0">
-                <p className="font-ibm text-sm font-medium text-foreground">{n.label}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{n.description}</p>
-              </div>
-              <button
-                onClick={() => toggleNotif(n.id)}
-                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${n.enabled ? "bg-[hsl(var(--primary))]" : "bg-slate-200"}`}
-              >
-                <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${n.enabled ? "translate-x-4" : "translate-x-0.5"}`} />
-              </button>
-            </div>
-          ))}
         </div>
       </div>
 
