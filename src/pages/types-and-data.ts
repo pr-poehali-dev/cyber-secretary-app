@@ -29,6 +29,8 @@ export interface Client {
   totalBilled: number;
   lastContact: string;
   category: string;
+  investigator: string;
+  agency: string;
 }
 
 export interface InvestigationAction {
@@ -62,12 +64,12 @@ export const todayTasks: Task[] = [
 ];
 
 export const allClients: Client[] = [
-  { id: 1, name: "Иванов Алексей Владимирович", type: "paid", caseNumber: "1-245/2024", status: "active", nextDate: "12.04.2026", totalBilled: 185000, lastContact: "08.04.2026", category: "Мошенничество (ст. 159)" },
-  { id: 2, name: "Петрова Мария Сергеевна", type: "article51", caseNumber: "1-118/2024", status: "active", nextDate: "15.04.2026", totalBilled: 0, lastContact: "07.04.2026", category: "Кража (ст. 158)" },
-  { id: 3, name: "Сидоров Константин Николаевич", type: "paid", caseNumber: "1-302/2024", status: "appeal", nextDate: "20.04.2026", totalBilled: 240000, lastContact: "05.04.2026", category: "Растрата (ст. 160)" },
-  { id: 4, name: "Носова Екатерина Васильевна", type: "paid", caseNumber: "1-089/2024", status: "appeal", nextDate: "10.04.2026", totalBilled: 95000, lastContact: "09.04.2026", category: "ДТП (ст. 264)" },
-  { id: 5, name: "Громов Павел Игоревич", type: "article51", caseNumber: "1-401/2025", status: "active", nextDate: "18.04.2026", totalBilled: 0, lastContact: "09.04.2026", category: "Грабёж (ст. 161)" },
-  { id: 6, name: "Кузнецов Роман Алексеевич", type: "paid", caseNumber: "1-156/2025", status: "closed", nextDate: "—", totalBilled: 320000, lastContact: "01.04.2026", category: "Наркотики (ст. 228)" },
+  { id: 1, name: "Иванов Алексей Владимирович", type: "paid", caseNumber: "1-245/2024", status: "active", nextDate: "12.04.2026", totalBilled: 185000, lastContact: "08.04.2026", category: "Мошенничество (ст. 159)", investigator: "Соколов Дмитрий Игоревич", agency: "СК России по ЦАО г. Москвы" },
+  { id: 2, name: "Петрова Мария Сергеевна", type: "article51", caseNumber: "1-118/2024", status: "active", nextDate: "15.04.2026", totalBilled: 0, lastContact: "07.04.2026", category: "Кража (ст. 158)", investigator: "Морозова Анна Викторовна", agency: "ОП №3 УМВД России по г. Москве" },
+  { id: 3, name: "Сидоров Константин Николаевич", type: "paid", caseNumber: "1-302/2024", status: "appeal", nextDate: "20.04.2026", totalBilled: 240000, lastContact: "05.04.2026", category: "Растрата (ст. 160)", investigator: "Крылов Павел Сергеевич", agency: "СК России по ЮЗАО г. Москвы" },
+  { id: 4, name: "Носова Екатерина Васильевна", type: "paid", caseNumber: "1-089/2024", status: "appeal", nextDate: "10.04.2026", totalBilled: 95000, lastContact: "09.04.2026", category: "ДТП (ст. 264)", investigator: "Лебедев Игорь Константинович", agency: "ОМВД России по р-ну Хамовники" },
+  { id: 5, name: "Громов Павел Игоревич", type: "article51", caseNumber: "1-401/2025", status: "active", nextDate: "18.04.2026", totalBilled: 0, lastContact: "09.04.2026", category: "Грабёж (ст. 161)", investigator: "Волков Артём Николаевич", agency: "СК России по ЮАО г. Москвы" },
+  { id: 6, name: "Кузнецов Роман Алексеевич", type: "paid", caseNumber: "1-156/2025", status: "closed", nextDate: "—", totalBilled: 320000, lastContact: "01.04.2026", category: "Наркотики (ст. 228)", investigator: "Зайцева Ольга Михайловна", agency: "УФСКН России по г. Москве" },
 ];
 
 export const allInvestigations: InvestigationAction[] = [
