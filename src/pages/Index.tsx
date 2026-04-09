@@ -48,10 +48,17 @@ const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
   const [subLoading, setSubLoading] = useState(true);
 
   useEffect(() => {
-    // Проверка подписки
+    // Проверка подписки — таймаут 5 сек, при любой ошибке пускаем в приложение
+    const timer = setTimeout(() => {
+      setSubStatus({ has_access: true });
+      setSubLoading(false);
+    }, 5000);
+
     fetchSubscriptionStatus().then(s => {
+      clearTimeout(timer);
       setSubStatus(s);
     }).catch(() => {
+      clearTimeout(timer);
       setSubStatus({ has_access: true }); // fallback — не блокируем при ошибке сети
     }).finally(() => setSubLoading(false));
 
@@ -59,7 +66,9 @@ const Index = ({ user, onLogout, onUserUpdate }: IndexProps) => {
     fetchBillingSettings().then(s => setBillingSettings(s)).catch(() => {});
 
     // Срочные задачи
-    Promise.all([fetchTasks("09.04.2026"), fetchDeadlines()]).then(([tasks, deadlines]) => {
+    const today = new Date();
+    const todayFmt = `${String(today.getDate()).padStart(2,"0")}.${String(today.getMonth()+1).padStart(2,"0")}.${today.getFullYear()}`;
+    Promise.all([fetchTasks(todayFmt), fetchDeadlines()]).then(([tasks, deadlines]) => {
       const u = tasks.filter((t: any) => t.urgent && !t.done).length
               + deadlines.filter((d: any) => d.days_left <= 2).length;
       setUrgentCount(u);

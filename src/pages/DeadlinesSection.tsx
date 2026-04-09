@@ -42,7 +42,7 @@ function NewDeadlineModal({
     const base = new Date(y, m - 1, d);
     const deadline = new Date(base);
     deadline.setDate(deadline.getDate() + days);
-    const today = new Date(2026, 3, 9);
+    const today = new Date();
     const daysLeft = Math.ceil((deadline.getTime() - today.getTime()) / 86400000);
     const dateStr = `${String(deadline.getDate()).padStart(2, "0")}.${String(deadline.getMonth() + 1).padStart(2, "0")}.${deadline.getFullYear()}`;
     return { date: dateStr, daysLeft };
@@ -107,7 +107,7 @@ function NewDeadlineModal({
             <p className={labelCls}>Дата приговора / события *</p>
             <input
               className={inputCls}
-              placeholder="09.04.2026"
+              placeholder={new Date().toLocaleDateString("ru-RU")}
               value={eventDate}
               onChange={e => setEventDate(e.target.value)}
             />

@@ -32,6 +32,17 @@ function toDeadline(r: any): Deadline {
   };
 }
 
+// Текущая дата в формате ДД.ММ.ГГГГ для запросов к API
+function todayStr(): string {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
+}
+
+// Локализованная подпись текущей даты для заголовка расписания
+function todayLabel(): string {
+  return new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
+}
+
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export function DashboardSection() {
@@ -42,14 +53,14 @@ export function DashboardSection() {
 
   useEffect(() => {
     Promise.all([
-      fetchTasks("09.04.2026"),
+      fetchTasks(todayStr()),
       fetchClients(),
       fetchDeadlines(),
     ]).then(([t, c, d]) => {
       setTasks(t.map(toTask));
       setClients(c.map(toClient));
       setDeadlines(d.map(toDeadline));
-    }).finally(() => setLoading(false));
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   const urgentCount = tasks.filter(t => t.urgent && !t.done).length;
@@ -96,7 +107,7 @@ export function DashboardSection() {
 
       <div className="bg-white rounded-lg border border-border overflow-hidden">
         <div className="px-4 lg:px-5 py-3 lg:py-3.5 border-b border-border flex items-center justify-between">
-          <h3 className="font-golos font-semibold text-sm text-foreground">Расписание · 9 апреля 2026</h3>
+          <h3 className="font-golos font-semibold text-sm text-foreground">Расписание · {todayLabel()}</h3>
           <span className="text-xs text-muted-foreground shrink-0 ml-2">{doneCount}/{tasks.length}</span>
         </div>
         <div className="divide-y divide-border">
@@ -144,7 +155,7 @@ function NewTaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
     if (!form.title.trim() || !form.client.trim()) return;
     setSaving(true);
     try {
-      const raw = await createTask({ ...form, taskDate: "09.04.2026" });
+      const raw = await createTask({ ...form, taskDate: todayStr() });
       onCreated(toTask(raw));
       onClose();
     } finally {
@@ -212,7 +223,7 @@ export function PlanningSection() {
   const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
-    fetchTasks("09.04.2026")
+    fetchTasks(todayStr())
       .then(data => setTasks(data.map(toTask)))
       .finally(() => setLoading(false));
   }, []);
@@ -233,7 +244,7 @@ export function PlanningSection() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-golos font-bold text-xl text-foreground">Планирование дня</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">9 апреля 2026 — среда</p>
+          <p className="text-sm text-muted-foreground mt-0.5">{todayLabel()}</p>
         </div>
         <Button onClick={() => setShowForm(true)} className="bg-[hsl(var(--primary))] text-white text-sm self-start sm:self-auto">
           <Icon name="Plus" size={15} className="mr-1.5" /> Добавить задачу
