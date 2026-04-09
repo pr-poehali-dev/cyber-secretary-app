@@ -4,7 +4,7 @@ import Icon from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Client } from "./types-and-data";
-import { fetchClients, updateClient, createClient } from "@/api";
+import { fetchClients, updateClient, createClient, fetchInvestigationsByClient } from "@/api";
 
 function toClient(r: any): Client & { history: {id: number; note: string; event_date: string}[] } {
   return {
@@ -393,84 +393,182 @@ export function ClientsSection() {
 
 // ─── Petitions ────────────────────────────────────────────────────────────────
 
-const petitionHistory = [
-  { id: 1, client: "Иванов А.В.", actions: 5, total: 45000, date: "09.04.2026" },
-  { id: 2, client: "Петрова М.С.", actions: 3, total: 27000, date: "08.04.2026" },
-  { id: 3, client: "Громов П.И.", actions: 8, total: 72000, date: "07.04.2026" },
-];
+// Соответствие типа следственного действия → строка ходатайства + ставка
+const INV_TYPE_RATES: Record<string, { name: string; rate: number }> = {
+  "допрос":       { name: "Участие в следственном действии (допрос)", rate: 3500 },
+  "обыск":        { name: "Участие в следственном действии (обыск)", rate: 5000 },
+  "очная ставка": { name: "Участие в очной ставке", rate: 4000 },
+  "экспертиза":   { name: "Участие в экспертизе", rate: 4500 },
+  "ознакомление": { name: "Ознакомление с материалами дела (том)", rate: 2500 },
+};
 
-const actionItems = [
+// Дополнительные позиции, доступны вручную
+const EXTRA_ITEMS = [
   { name: "Участие в судебном заседании", rate: 5000 },
-  { name: "Участие в следственном действии (допрос)", rate: 3500 },
-  { name: "Участие в следственном действии (обыск)", rate: 5000 },
-  { name: "Участие в очной ставке", rate: 4000 },
-  { name: "Ознакомление с материалами дела (том)", rate: 2500 },
-  { name: "Участие в экспертизе", rate: 4500 },
   { name: "Составление жалобы / ходатайства", rate: 3000 },
   { name: "Консультация (час)", rate: 2000 },
 ];
 
+interface PetitionItem {
+  id: string;
+  name: string;
+  rate: number;
+  fromInv: boolean;
+  invDate?: string;
+  checked: boolean;
+}
+
 export function PetitionsSection() {
-  const [selected, setSelected] = useState<number[]>([]);
-  const total = selected.reduce((s, i) => s + actionItems[i].rate, 0);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [items, setItems] = useState<PetitionItem[]>([]);
+  const [loadingClients, setLoadingClients] = useState(true);
+  const [loadingInv, setLoadingInv] = useState(false);
+
+  useEffect(() => {
+    fetchClients()
+      .then(data => setClients(data.map(toClient)))
+      .finally(() => setLoadingClients(false));
+  }, []);
+
+  const handleSelectClient = async (clientId: number) => {
+    setSelectedClientId(clientId);
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+    setLoadingInv(true);
+    try {
+      const raw = await fetchInvestigationsByClient(client.name);
+      const done = raw.filter((r: any) => r.done);
+      const invItems: PetitionItem[] = done.map((r: any) => {
+        const mapped = INV_TYPE_RATES[r.type] ?? { name: r.action, rate: 3000 };
+        return { id: `inv-${r.id}`, name: mapped.name, rate: mapped.rate, fromInv: true, invDate: r.date, checked: true };
+      });
+      const extraItems: PetitionItem[] = EXTRA_ITEMS.map((e, i) => ({
+        id: `extra-${i}`, name: e.name, rate: e.rate, fromInv: false, checked: false,
+      }));
+      setItems([...invItems, ...extraItems]);
+    } finally {
+      setLoadingInv(false);
+    }
+  };
+
+  const toggleItem = (id: string) =>
+    setItems(prev => prev.map(it => it.id === id ? { ...it, checked: !it.checked } : it));
+
+  const checkedItems = items.filter(it => it.checked);
+  const total = checkedItems.reduce((s, it) => s + it.rate, 0);
+  const selectedClient = clients.find(c => c.id === selectedClientId);
+
+  if (loadingClients) return (
+    <div className="flex items-center justify-center h-40 text-muted-foreground text-sm font-ibm">Загрузка...</div>
+  );
 
   return (
     <div className="space-y-4 lg:space-y-5 animate-fade-in">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="font-golos font-bold text-xl text-foreground">Ходатайства на оплату</h2>
-        <Button className="bg-[hsl(var(--primary))] text-white text-sm self-start sm:self-auto">
-          <Icon name="FilePlus" size={15} className="mr-1.5" /> Новое ходатайство
-        </Button>
-      </div>
+      <h2 className="font-golos font-bold text-xl text-foreground">Ходатайства на оплату</h2>
 
-      <div className="grid lg:grid-cols-2 gap-4 lg:gap-5">
-        {/* Constructor */}
-        <div className="bg-white rounded-lg border border-border overflow-hidden">
-          <div className="px-4 lg:px-5 py-3.5 border-b border-border">
-            <h3 className="font-golos font-semibold text-sm">Конструктор ходатайства</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Отметьте выполненные действия</p>
-          </div>
-          <div className="divide-y divide-border">
-            {actionItems.map((item, i) => (
-              <label key={i} className="flex items-center gap-3 px-4 lg:px-5 py-3 cursor-pointer hover:bg-secondary transition-colors">
-                <Checkbox checked={selected.includes(i)} onCheckedChange={checked =>
-                  setSelected(prev => checked ? [...prev, i] : prev.filter(x => x !== i))} />
-                <span className="flex-1 text-sm font-ibm leading-snug">{item.name}</span>
-                <span className="text-sm font-golos font-medium text-muted-foreground shrink-0 whitespace-nowrap">{item.rate.toLocaleString()} ₽</span>
-              </label>
+      {/* Шаг 1: Выбор доверителя */}
+      <div className="bg-white rounded-lg border border-border overflow-hidden">
+        <div className="px-4 lg:px-5 py-3.5 border-b border-border flex items-center gap-2">
+          <div className="w-5 h-5 rounded-full bg-[hsl(var(--primary))] text-white text-[10px] font-bold flex items-center justify-center shrink-0">1</div>
+          <h3 className="font-golos font-semibold text-sm">Выберите доверителя</h3>
+        </div>
+        <div className="p-4 lg:p-5">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {clients.map(c => (
+              <button
+                key={c.id}
+                onClick={() => handleSelectClient(c.id)}
+                className={`text-left p-3 rounded-lg border transition-all ${
+                  selectedClientId === c.id
+                    ? "border-[hsl(var(--primary))] bg-[hsl(222_45%_18%/5%)] shadow-sm"
+                    : "border-border hover:border-muted-foreground"
+                }`}
+              >
+                <p className="font-golos font-semibold text-sm text-foreground truncate">{c.name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">{c.category}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">дело {c.caseNumber}</p>
+              </button>
             ))}
           </div>
-          <div className="px-4 lg:px-5 py-3.5 border-t border-border bg-secondary flex items-center justify-between">
-            <span className="font-golos font-semibold text-sm">Итого</span>
-            <span className="font-golos font-bold text-lg gold-text">{total.toLocaleString()} ₽</span>
-          </div>
-          <div className="px-4 lg:px-5 py-3">
-            <Button disabled={!selected.length} className="w-full bg-[hsl(var(--primary))] text-white text-sm">
-              <Icon name="Download" size={15} className="mr-1.5" /> Сформировать документ
-            </Button>
-          </div>
-        </div>
-
-        {/* History */}
-        <div className="space-y-3">
-          <h3 className="font-golos font-semibold text-sm text-foreground">Ранее сформированные</h3>
-          {petitionHistory.map(p => (
-            <div key={p.id} className="bg-white rounded-lg border border-border p-3 lg:p-4 card-hover">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-ibm text-sm font-medium text-foreground">{p.client}</p>
-                  <p className="text-xs text-muted-foreground">Ходатайство на оплату труда адвоката</p>
-                  <p className="text-xs text-muted-foreground">{p.actions} действий · {p.date}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="font-golos font-bold gold-text">{p.total.toLocaleString()} ₽</p>
-                  <button className="text-xs text-blue-600 hover:underline mt-1">Скачать</button>
-                </div>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
+
+      {/* Шаг 2: Позиции ходатайства */}
+      {selectedClientId && (
+        <div className="bg-white rounded-lg border border-border overflow-hidden">
+          <div className="px-4 lg:px-5 py-3.5 border-b border-border flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full bg-[hsl(var(--primary))] text-white text-[10px] font-bold flex items-center justify-center shrink-0">2</div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-golos font-semibold text-sm">Действия по делу</h3>
+              {selectedClient && <p className="text-xs text-muted-foreground mt-0.5">{selectedClient.name}</p>}
+            </div>
+            {loadingInv && <Icon name="Loader" size={15} className="animate-spin text-muted-foreground shrink-0" />}
+          </div>
+
+          {!loadingInv && items.length > 0 && (
+            <>
+              {items.some(it => it.fromInv) && (
+                <>
+                  <div className="px-4 lg:px-5 py-2 bg-secondary border-b border-border">
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Icon name="Search" size={11} /> Завершённые следственные действия
+                    </p>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {items.filter(it => it.fromInv).map(it => (
+                      <label key={it.id} className="flex items-center gap-3 px-4 lg:px-5 py-3 cursor-pointer hover:bg-secondary transition-colors">
+                        <Checkbox checked={it.checked} onCheckedChange={() => toggleItem(it.id)} />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-ibm text-foreground leading-snug">{it.name}</span>
+                          {it.invDate && <p className="text-[10px] text-muted-foreground mt-0.5">{it.invDate}</p>}
+                        </div>
+                        <span className="text-sm font-golos font-medium text-muted-foreground shrink-0 whitespace-nowrap">{it.rate.toLocaleString()} ₽</span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <div className="px-4 lg:px-5 py-2 bg-secondary border-y border-border">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Icon name="Plus" size={11} /> Дополнительные позиции
+                </p>
+              </div>
+              <div className="divide-y divide-border">
+                {items.filter(it => !it.fromInv).map(it => (
+                  <label key={it.id} className="flex items-center gap-3 px-4 lg:px-5 py-3 cursor-pointer hover:bg-secondary transition-colors">
+                    <Checkbox checked={it.checked} onCheckedChange={() => toggleItem(it.id)} />
+                    <span className="flex-1 text-sm font-ibm leading-snug text-foreground">{it.name}</span>
+                    <span className="text-sm font-golos font-medium text-muted-foreground shrink-0 whitespace-nowrap">{it.rate.toLocaleString()} ₽</span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="px-4 lg:px-5 py-3.5 border-t border-border bg-secondary flex items-center justify-between">
+                <div>
+                  <span className="font-golos font-semibold text-sm">Итого</span>
+                  <span className="text-xs text-muted-foreground ml-2">{checkedItems.length} позиций</span>
+                </div>
+                <span className="font-golos font-bold text-lg gold-text">{total.toLocaleString()} ₽</span>
+              </div>
+              <div className="px-4 lg:px-5 py-3">
+                <Button disabled={!checkedItems.length} className="w-full bg-[hsl(var(--primary))] text-white text-sm">
+                  <Icon name="FileText" size={15} className="mr-1.5" /> Сформировать ходатайство
+                </Button>
+              </div>
+            </>
+          )}
+
+          {!loadingInv && items.length === 0 && (
+            <div className="px-4 lg:px-5 py-8 text-center">
+              <Icon name="Search" size={28} className="mx-auto mb-2 text-muted-foreground opacity-40" />
+              <p className="text-sm text-muted-foreground font-ibm">Нет завершённых следственных действий</p>
+              <p className="text-xs text-muted-foreground mt-1">Отметьте действия как выполненные в разделе «Следственные действия»</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

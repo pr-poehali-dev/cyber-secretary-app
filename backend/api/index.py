@@ -140,9 +140,16 @@ def handler(event: dict, context) -> dict:
     # ── /investigations ──────────────────────────────────────────────────────
     if path == "/investigations":
         if method == "GET":
+            client_filter = qs.get("client", "")
             with get_conn() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                    cur.execute(f"SELECT * FROM {SCHEMA}.investigations ORDER BY date, id")
+                    if client_filter:
+                        cur.execute(
+                            f"SELECT * FROM {SCHEMA}.investigations WHERE client ILIKE %s ORDER BY date, id",
+                            (f"%{client_filter}%",)
+                        )
+                    else:
+                        cur.execute(f"SELECT * FROM {SCHEMA}.investigations ORDER BY date, id")
                     rows = cur.fetchall()
             return resp([dict(r) for r in rows])
 

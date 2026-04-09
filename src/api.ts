@@ -53,6 +53,10 @@ export function fetchInvestigations() {
   return request<any[]>("/investigations");
 }
 
+export function fetchInvestigationsByClient(clientName: string) {
+  return request<any[]>(`/investigations?client=${encodeURIComponent(clientName)}`);
+}
+
 export function createInvestigation(data: Record<string, any>) {
   return request<any>("/investigations", { method: "POST", body: JSON.stringify(data) });
 }
