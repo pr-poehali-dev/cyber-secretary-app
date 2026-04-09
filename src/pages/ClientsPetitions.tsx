@@ -23,9 +23,94 @@ function EditField({ label, value, onChange }: { label: string; value: string; o
       <input
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="w-full text-xs font-semibold text-foreground bg-secondary border border-border rounded px-2 py-1 focus:outline-none focus:border-[hsl(var(--primary))] transition-colors"
+        className="w-full text-xs font-semibold text-foreground bg-secondary border border-border rounded px-2 py-1.5 focus:outline-none focus:border-[hsl(var(--primary))] transition-colors"
       />
     </div>
+  );
+}
+
+// Detail panel — shared between inline (desktop) and modal (mobile)
+function ClientDetail({
+  selected, editing, draft, statusLabel,
+  onEdit, onSave, onCancel, setField,
+}: {
+  selected: Client;
+  editing: boolean;
+  draft: EditableFields | null;
+  statusLabel: Record<string, string>;
+  onEdit: () => void;
+  onSave: () => void;
+  onCancel: () => void;
+  setField: (key: keyof EditableFields) => (v: string) => void;
+}) {
+  return (
+    <>
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between" style={{ background: "hsl(var(--primary))" }}>
+        <div className="min-w-0 mr-2">
+          <p className="font-golos font-semibold text-white text-sm truncate">{selected.name}</p>
+          <p className="text-xs text-blue-200 mt-0.5">{selected.caseNumber}</p>
+        </div>
+        {!editing && (
+          <button onClick={onEdit} className="text-blue-200 hover:text-white transition-colors shrink-0">
+            <Icon name="Pencil" size={14} />
+          </button>
+        )}
+      </div>
+      <div className="p-4 space-y-4">
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div><p className="text-muted-foreground">Тип</p><p className="font-semibold mt-0.5">{selected.type === "paid" ? "Платный" : "Ст. 51 УПК"}</p></div>
+          <div><p className="text-muted-foreground">Статус</p><p className="font-semibold mt-0.5">{statusLabel[selected.status]}</p></div>
+          {editing && draft ? (
+            <>
+              <div className="col-span-2"><EditField label="Следующая дата" value={draft.nextDate} onChange={setField("nextDate")} /></div>
+              <div><p className="text-muted-foreground">Выставлено</p><p className="font-semibold gold-text mt-0.5">{selected.totalBilled > 0 ? `${selected.totalBilled.toLocaleString()} ₽` : "—"}</p></div>
+              <div />
+              <div className="col-span-2"><EditField label="Следователь" value={draft.investigator} onChange={setField("investigator")} /></div>
+              <div className="col-span-2 grid grid-cols-2 gap-3">
+                <EditField label="Телефон" value={draft.investigatorPhone} onChange={setField("investigatorPhone")} />
+                <EditField label="Кабинет" value={draft.investigatorOffice} onChange={setField("investigatorOffice")} />
+              </div>
+              <div className="col-span-2"><EditField label="Орган, ведущий дело" value={draft.agency} onChange={setField("agency")} /></div>
+            </>
+          ) : (
+            <>
+              <div><p className="text-muted-foreground">Следующая дата</p><p className="font-semibold mt-0.5">{selected.nextDate}</p></div>
+              <div><p className="text-muted-foreground">Выставлено</p><p className="font-semibold gold-text mt-0.5">{selected.totalBilled > 0 ? `${selected.totalBilled.toLocaleString()} ₽` : "—"}</p></div>
+              <div className="col-span-2"><p className="text-muted-foreground">Следователь</p><p className="font-semibold mt-0.5">{selected.investigator}</p></div>
+              <div><p className="text-muted-foreground">Телефон</p><p className="font-semibold mt-0.5">{selected.investigatorPhone}</p></div>
+              <div><p className="text-muted-foreground">Кабинет</p><p className="font-semibold mt-0.5">{selected.investigatorOffice}</p></div>
+              <div className="col-span-2"><p className="text-muted-foreground">Орган, ведущий дело</p><p className="font-semibold mt-0.5">{selected.agency}</p></div>
+            </>
+          )}
+        </div>
+
+        {editing ? (
+          <div className="flex gap-2">
+            <Button size="sm" onClick={onSave} className="flex-1 bg-[hsl(var(--primary))] text-white text-xs">
+              <Icon name="Check" size={13} className="mr-1" /> Сохранить
+            </Button>
+            <Button size="sm" variant="outline" onClick={onCancel} className="flex-1 text-xs">Отмена</Button>
+          </div>
+        ) : (
+          <>
+            <div>
+              <p className="text-xs text-muted-foreground mb-2 font-semibold uppercase tracking-wider">История</p>
+              <div className="space-y-2">
+                {clientHistory.map((h, i) => (
+                  <div key={i} className="flex gap-2.5 text-xs">
+                    <span className="text-muted-foreground shrink-0">{h.date}</span>
+                    <span className="text-foreground">{h.note}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <Button size="sm" variant="outline" className="w-full text-xs">
+              <Icon name="FileText" size={13} className="mr-1.5" /> Сформировать ходатайство
+            </Button>
+          </>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -35,6 +120,8 @@ export function ClientsSection() {
   const [selected, setSelected] = useState<Client | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<EditableFields | null>(null);
+  // Mobile: show detail panel as overlay
+  const [mobileDetail, setMobileDetail] = useState(false);
 
   const filtered = clients.filter(c =>
     filter === "all" ? true : filter === "appeal" ? c.status === "appeal" : c.type === filter
@@ -47,6 +134,7 @@ export function ClientsSection() {
     setSelected(client);
     setEditing(false);
     setDraft(null);
+    setMobileDetail(true);
   };
 
   const handleEdit = () => {
@@ -78,16 +166,19 @@ export function ClientsSection() {
   const setField = (key: keyof EditableFields) => (value: string) =>
     setDraft(prev => prev ? { ...prev, [key]: value } : prev);
 
+  const detailProps = { selected: selected!, editing, draft, statusLabel, onEdit: handleEdit, onSave: handleSave, onCancel: handleCancel, setField };
+
   return (
-    <div className="space-y-5 animate-fade-in">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 animate-fade-in">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="font-golos font-bold text-xl text-foreground">Управление доверителями</h2>
-        <Button className="bg-[hsl(var(--primary))] text-white text-sm">
+        <Button className="bg-[hsl(var(--primary))] text-white text-sm self-start sm:self-auto">
           <Icon name="UserPlus" size={15} className="mr-1.5" /> Новый доверитель
         </Button>
       </div>
 
-      <div className="flex gap-2 flex-wrap">
+      {/* Filter tabs */}
+      <div className="flex gap-1.5 flex-wrap">
         {([
           ["all", "Все", clients.length],
           ["paid", "Платные", clients.filter(c => c.type === "paid").length],
@@ -95,114 +186,40 @@ export function ClientsSection() {
           ["appeal", "Апелляция", clients.filter(c => c.status === "appeal").length],
         ] as const).map(([key, label, count]) => (
           <button key={key} onClick={() => setFilter(key)}
-            className={`px-4 py-1.5 rounded text-sm font-ibm transition-all ${filter === key ? "bg-[hsl(var(--primary))] text-white" : "bg-white border border-border text-foreground hover:bg-secondary"}`}>
+            className={`px-3 py-1.5 rounded text-xs sm:text-sm font-ibm transition-all ${filter === key ? "bg-[hsl(var(--primary))] text-white" : "bg-white border border-border text-foreground hover:bg-secondary"}`}>
             {label} <span className="ml-1 opacity-60">{count}</span>
           </button>
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-4">
+      <div className="grid lg:grid-cols-3 gap-3 lg:gap-4">
+        {/* Client list */}
         <div className="lg:col-span-2 space-y-2">
           {filtered.map(client => (
             <div key={client.id} onClick={() => handleSelect(client)}
-              className={`bg-white rounded-lg border cursor-pointer p-4 card-hover transition-all ${selected?.id === client.id ? "border-[hsl(var(--primary))] shadow-sm" : "border-border"}`}>
-              <div className="flex items-start justify-between gap-3">
+              className={`bg-white rounded-lg border cursor-pointer p-3 lg:p-4 card-hover transition-all ${selected?.id === client.id ? "border-[hsl(var(--primary))] shadow-sm" : "border-border"}`}>
+              <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-golos font-semibold text-sm text-foreground truncate">{client.name}</p>
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <p className="font-golos font-semibold text-sm text-foreground">{client.name}</p>
                     {client.type === "article51" && <span className="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 shrink-0">ст. 51</span>}
                   </div>
                   <p className="text-xs text-muted-foreground">{client.category} · дело {client.caseNumber}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Следующая дата: {client.nextDate}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Ближайшая дата: {client.nextDate}</p>
                 </div>
                 <div className="text-right shrink-0">
                   <span className={`text-xs px-2 py-0.5 rounded ${statusStyle[client.status]}`}>{statusLabel[client.status]}</span>
-                  {client.totalBilled > 0 && <p className="text-xs gold-text font-golos font-semibold mt-1.5">{client.totalBilled.toLocaleString()} ₽</p>}
+                  {client.totalBilled > 0 && <p className="text-xs gold-text font-golos font-semibold mt-1">{client.totalBilled.toLocaleString()} ₽</p>}
                 </div>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="bg-white rounded-lg border border-border overflow-hidden h-fit">
+        {/* Desktop detail panel */}
+        <div className="hidden lg:block bg-white rounded-lg border border-border overflow-hidden h-fit">
           {selected ? (
-            <>
-              <div className="px-4 py-3 border-b border-border flex items-center justify-between" style={{ background: "hsl(var(--primary))" }}>
-                <div>
-                  <p className="font-golos font-semibold text-white text-sm">{selected.name}</p>
-                  <p className="text-xs text-blue-200 mt-0.5">{selected.caseNumber}</p>
-                </div>
-                {!editing && (
-                  <button onClick={handleEdit} className="text-blue-200 hover:text-white transition-colors shrink-0 ml-2">
-                    <Icon name="Pencil" size={14} />
-                  </button>
-                )}
-              </div>
-              <div className="p-4 space-y-4">
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div><p className="text-muted-foreground">Тип</p><p className="font-semibold mt-0.5">{selected.type === "paid" ? "Платный" : "Ст. 51 УПК"}</p></div>
-                  <div><p className="text-muted-foreground">Статус</p><p className="font-semibold mt-0.5">{statusLabel[selected.status]}</p></div>
-                  {editing && draft ? (
-                    <>
-                      <div className="col-span-2">
-                        <EditField label="Следующая дата" value={draft.nextDate} onChange={setField("nextDate")} />
-                      </div>
-                      <div><p className="text-muted-foreground">Выставлено</p><p className="font-semibold gold-text mt-0.5">{selected.totalBilled > 0 ? `${selected.totalBilled.toLocaleString()} ₽` : "—"}</p></div>
-                      <div />
-                      <div className="col-span-2">
-                        <EditField label="Следователь" value={draft.investigator} onChange={setField("investigator")} />
-                      </div>
-                      <div>
-                        <EditField label="Телефон" value={draft.investigatorPhone} onChange={setField("investigatorPhone")} />
-                      </div>
-                      <div>
-                        <EditField label="Кабинет" value={draft.investigatorOffice} onChange={setField("investigatorOffice")} />
-                      </div>
-                      <div className="col-span-2">
-                        <EditField label="Орган, ведущий дело" value={draft.agency} onChange={setField("agency")} />
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div><p className="text-muted-foreground">Следующая дата</p><p className="font-semibold mt-0.5">{selected.nextDate}</p></div>
-                      <div><p className="text-muted-foreground">Выставлено</p><p className="font-semibold gold-text mt-0.5">{selected.totalBilled > 0 ? `${selected.totalBilled.toLocaleString()} ₽` : "—"}</p></div>
-                      <div className="col-span-2"><p className="text-muted-foreground">Следователь</p><p className="font-semibold mt-0.5">{selected.investigator}</p></div>
-                      <div><p className="text-muted-foreground">Телефон</p><p className="font-semibold mt-0.5">{selected.investigatorPhone}</p></div>
-                      <div><p className="text-muted-foreground">Кабинет</p><p className="font-semibold mt-0.5">{selected.investigatorOffice}</p></div>
-                      <div className="col-span-2"><p className="text-muted-foreground">Орган, ведущий дело</p><p className="font-semibold mt-0.5">{selected.agency}</p></div>
-                    </>
-                  )}
-                </div>
-
-                {editing ? (
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleSave} className="flex-1 bg-[hsl(var(--primary))] text-white text-xs">
-                      <Icon name="Check" size={13} className="mr-1" /> Сохранить
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={handleCancel} className="flex-1 text-xs">
-                      Отмена
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-2 font-semibold uppercase tracking-wider">История</p>
-                      <div className="space-y-2">
-                        {clientHistory.map((h, i) => (
-                          <div key={i} className="flex gap-2.5 text-xs">
-                            <span className="text-muted-foreground shrink-0">{h.date}</span>
-                            <span className="text-foreground">{h.note}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <Button size="sm" variant="outline" className="w-full text-xs">
-                      <Icon name="FileText" size={13} className="mr-1.5" /> Сформировать ходатайство
-                    </Button>
-                  </>
-                )}
-              </div>
-            </>
+            <ClientDetail {...detailProps} />
           ) : (
             <div className="p-8 text-center text-muted-foreground text-sm">
               <Icon name="User" size={32} className="mx-auto mb-2 opacity-30" />
@@ -211,6 +228,27 @@ export function ClientsSection() {
           )}
         </div>
       </div>
+
+      {/* Mobile detail overlay */}
+      {mobileDetail && selected && (
+        <div className="fixed inset-0 z-40 lg:hidden flex flex-col" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="mt-auto bg-white rounded-t-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            {/* Drag handle + close */}
+            <div className="flex items-center justify-between px-4 pt-3 pb-1 shrink-0">
+              <div className="w-10 h-1 bg-border rounded-full mx-auto" />
+            </div>
+            <div className="flex items-center justify-between px-4 pb-2 shrink-0">
+              <span className="font-golos font-semibold text-sm text-foreground truncate mr-2">{selected.name}</span>
+              <button onClick={() => { setMobileDetail(false); setEditing(false); setDraft(null); }} className="text-muted-foreground hover:text-foreground shrink-0">
+                <Icon name="X" size={18} />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              <ClientDetail {...detailProps} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -239,52 +277,54 @@ export function PetitionsSection() {
   const total = selected.reduce((s, i) => s + actionItems[i].rate, 0);
 
   return (
-    <div className="space-y-5 animate-fade-in">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 lg:space-y-5 animate-fade-in">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="font-golos font-bold text-xl text-foreground">Ходатайства на оплату</h2>
-        <Button className="bg-[hsl(var(--primary))] text-white text-sm">
+        <Button className="bg-[hsl(var(--primary))] text-white text-sm self-start sm:self-auto">
           <Icon name="FilePlus" size={15} className="mr-1.5" /> Новое ходатайство
         </Button>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-5">
+      <div className="grid lg:grid-cols-2 gap-4 lg:gap-5">
+        {/* Constructor */}
         <div className="bg-white rounded-lg border border-border overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-border">
+          <div className="px-4 lg:px-5 py-3.5 border-b border-border">
             <h3 className="font-golos font-semibold text-sm">Конструктор ходатайства</h3>
             <p className="text-xs text-muted-foreground mt-0.5">Отметьте выполненные действия</p>
           </div>
           <div className="divide-y divide-border">
             {actionItems.map((item, i) => (
-              <label key={i} className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-secondary transition-colors">
+              <label key={i} className="flex items-center gap-3 px-4 lg:px-5 py-3 cursor-pointer hover:bg-secondary transition-colors">
                 <Checkbox checked={selected.includes(i)} onCheckedChange={checked =>
                   setSelected(prev => checked ? [...prev, i] : prev.filter(x => x !== i))} />
-                <span className="flex-1 text-sm font-ibm">{item.name}</span>
-                <span className="text-sm font-golos font-medium text-muted-foreground shrink-0">{item.rate.toLocaleString()} ₽</span>
+                <span className="flex-1 text-sm font-ibm leading-snug">{item.name}</span>
+                <span className="text-sm font-golos font-medium text-muted-foreground shrink-0 whitespace-nowrap">{item.rate.toLocaleString()} ₽</span>
               </label>
             ))}
           </div>
-          <div className="px-5 py-3.5 border-t border-border bg-secondary flex items-center justify-between">
+          <div className="px-4 lg:px-5 py-3.5 border-t border-border bg-secondary flex items-center justify-between">
             <span className="font-golos font-semibold text-sm">Итого</span>
             <span className="font-golos font-bold text-lg gold-text">{total.toLocaleString()} ₽</span>
           </div>
-          <div className="px-5 py-3">
+          <div className="px-4 lg:px-5 py-3">
             <Button disabled={!selected.length} className="w-full bg-[hsl(var(--primary))] text-white text-sm">
               <Icon name="Download" size={15} className="mr-1.5" /> Сформировать документ
             </Button>
           </div>
         </div>
 
+        {/* History */}
         <div className="space-y-3">
           <h3 className="font-golos font-semibold text-sm text-foreground">Ранее сформированные</h3>
           {petitionHistory.map(p => (
-            <div key={p.id} className="bg-white rounded-lg border border-border p-4 card-hover">
-              <div className="flex items-start justify-between">
-                <div>
+            <div key={p.id} className="bg-white rounded-lg border border-border p-3 lg:p-4 card-hover">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
                   <p className="font-ibm text-sm font-medium text-foreground">{p.client}</p>
                   <p className="text-xs text-muted-foreground">Ходатайство на оплату труда адвоката</p>
                   <p className="text-xs text-muted-foreground">{p.actions} действий · {p.date}</p>
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <p className="font-golos font-bold gold-text">{p.total.toLocaleString()} ₽</p>
                   <button className="text-xs text-blue-600 hover:underline mt-1">Скачать</button>
                 </div>

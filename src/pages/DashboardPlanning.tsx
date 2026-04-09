@@ -15,34 +15,36 @@ export function DashboardSection() {
   const totalBilled = allClients.reduce((s, c) => s + c.totalBilled, 0);
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="space-y-4 lg:space-y-6 animate-fade-in">
+      {/* KPI cards — 2 cols mobile, 4 cols desktop */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
           { label: "Задач сегодня", value: todayTasks.length, sub: `${doneCount} выполнено`, icon: "CheckSquare", color: "text-blue-600" },
           { label: "Срочно", value: urgentCount, sub: "требуют внимания", icon: "AlertTriangle", color: "text-red-500" },
           { label: "Доверители", value: allClients.length, sub: `${allClients.filter(c => c.status === "active").length} активных`, icon: "Users", color: "text-emerald-600" },
-          { label: "Выставлено счетов", value: `${(totalBilled / 1000).toFixed(0)}к ₽`, sub: "в этом году", icon: "TrendingUp", color: "text-amber-600" },
+          { label: "Счетов выставлено", value: `${(totalBilled / 1000).toFixed(0)}к ₽`, sub: "в этом году", icon: "TrendingUp", color: "text-amber-600" },
         ].map((s, i) => (
-          <div key={i} className="bg-white rounded-lg border border-border p-4 card-hover">
+          <div key={i} className="bg-white rounded-lg border border-border p-3 lg:p-4 card-hover">
             <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-ibm uppercase tracking-wider">{s.label}</p>
-                <p className="text-2xl font-golos font-bold text-foreground mt-1">{s.value}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{s.sub}</p>
+              <div className="min-w-0 mr-2">
+                <p className="text-[10px] lg:text-xs text-muted-foreground font-ibm uppercase tracking-wider leading-tight">{s.label}</p>
+                <p className="text-xl lg:text-2xl font-golos font-bold text-foreground mt-1">{s.value}</p>
+                <p className="text-[10px] lg:text-xs text-muted-foreground mt-0.5">{s.sub}</p>
               </div>
-              <Icon name={s.icon as any} size={20} className={s.color} />
+              <Icon name={s.icon as any} size={18} className={`${s.color} shrink-0`} />
             </div>
           </div>
         ))}
       </div>
 
+      {/* Critical deadlines alert */}
       {allDeadlines.filter(d => d.daysLeft <= 2).length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-          <Icon name="AlertTriangle" size={18} className="text-red-500 mt-0.5 shrink-0" />
-          <div>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-3 lg:p-4 flex items-start gap-3">
+          <Icon name="AlertTriangle" size={16} className="text-red-500 mt-0.5 shrink-0" />
+          <div className="min-w-0">
             <p className="font-golos font-semibold text-red-700 text-sm">Критические сроки</p>
             {allDeadlines.filter(d => d.daysLeft <= 2).map(d => (
-              <p key={d.id} className="text-sm text-red-600 mt-0.5">
+              <p key={d.id} className="text-xs lg:text-sm text-red-600 mt-0.5">
                 {d.client} — {d.title} ({d.daysLeft === 1 ? "завтра" : "сегодня"})
               </p>
             ))}
@@ -50,25 +52,31 @@ export function DashboardSection() {
         </div>
       )}
 
+      {/* Schedule */}
       <div className="bg-white rounded-lg border border-border overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
-          <h3 className="font-golos font-semibold text-foreground">Расписание · 9 апреля 2026</h3>
-          <span className="text-xs text-muted-foreground">{doneCount}/{todayTasks.length} выполнено</span>
+        <div className="px-4 lg:px-5 py-3 lg:py-3.5 border-b border-border flex items-center justify-between">
+          <h3 className="font-golos font-semibold text-sm text-foreground">Расписание · 9 апреля 2026</h3>
+          <span className="text-xs text-muted-foreground shrink-0 ml-2">{doneCount}/{todayTasks.length}</span>
         </div>
         <div className="divide-y divide-border">
           {todayTasks.map(task => {
             const cfg = taskTypeConfig[task.type];
             return (
-              <div key={task.id} className={`flex items-center gap-4 px-5 py-3.5 ${task.done ? "opacity-50" : ""}`}>
-                <span className="text-xs font-ibm text-muted-foreground w-12 shrink-0">{task.time}</span>
-                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${task.urgent ? "bg-red-500" : "bg-slate-300"}`} />
-                <Icon name={cfg.icon as any} size={15} className={cfg.color} />
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-ibm ${task.done ? "line-through text-muted-foreground" : "text-foreground"}`}>{task.title}</p>
-                  <p className="text-xs text-muted-foreground">{task.client}</p>
+              <div key={task.id} className={`px-3 lg:px-5 py-3 lg:py-3.5 ${task.done ? "opacity-50" : ""}`}>
+                {/* Mobile: 2-line layout */}
+                <div className="flex items-start gap-2">
+                  <span className="text-xs font-ibm text-muted-foreground w-10 shrink-0 mt-0.5">{task.time}</span>
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${task.urgent ? "bg-red-500" : "bg-slate-300"}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-ibm leading-snug ${task.done ? "line-through text-muted-foreground" : "text-foreground"}`}>{task.title}</p>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <p className="text-xs text-muted-foreground">{task.client}</p>
+                      <span className="text-xs px-1.5 py-0.5 rounded status-normal">{cfg.label}</span>
+                      {task.urgent && !task.done && <span className="text-xs px-1.5 py-0.5 rounded status-urgent">срочно</span>}
+                    </div>
+                  </div>
+                  <Icon name={cfg.icon as any} size={14} className={`${cfg.color} shrink-0 mt-0.5`} />
                 </div>
-                {task.urgent && !task.done && <span className="text-xs px-2 py-0.5 rounded status-urgent shrink-0">срочно</span>}
-                <span className="text-xs px-2 py-0.5 rounded status-normal shrink-0">{cfg.label}</span>
               </div>
             );
           })}
@@ -86,18 +94,18 @@ export function PlanningSection() {
   const doneCount = tasks.filter(t => t.done).length;
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 lg:space-y-6 animate-fade-in">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-golos font-bold text-xl text-foreground">Планирование дня</h2>
           <p className="text-sm text-muted-foreground mt-0.5">9 апреля 2026 — среда</p>
         </div>
-        <Button className="bg-[hsl(var(--primary))] text-white text-sm">
+        <Button className="bg-[hsl(var(--primary))] text-white text-sm self-start sm:self-auto">
           <Icon name="Plus" size={15} className="mr-1.5" /> Добавить задачу
         </Button>
       </div>
 
-      <div className="bg-white rounded-lg border border-border p-4">
+      <div className="bg-white rounded-lg border border-border p-3 lg:p-4">
         <div className="flex justify-between text-sm mb-2">
           <span className="font-ibm text-foreground">Выполнение дня</span>
           <span className="font-golos font-semibold gold-text">{Math.round((doneCount / tasks.length) * 100)}%</span>
@@ -111,21 +119,22 @@ export function PlanningSection() {
         const cfg = taskTypeConfig[type];
         return (
           <div key={type} className="bg-white rounded-lg border border-border overflow-hidden">
-            <div className="px-5 py-3 border-b border-border flex items-center gap-2">
+            <div className="px-4 lg:px-5 py-3 border-b border-border flex items-center gap-2">
               <Icon name={cfg.icon as any} size={15} className={cfg.color} />
               <span className="font-golos font-semibold text-sm">{cfg.label}</span>
               <span className="ml-auto text-xs text-muted-foreground">{group.filter(t => t.done).length}/{group.length}</span>
             </div>
             <div className="divide-y divide-border">
               {group.map(task => (
-                <div key={task.id} className="flex items-center gap-4 px-5 py-3.5">
-                  <Checkbox checked={task.done} onCheckedChange={() => toggle(task.id)} />
-                  <span className="text-xs font-ibm text-muted-foreground w-12 shrink-0">{task.time}</span>
+                <div key={task.id} className="flex items-start gap-3 px-4 lg:px-5 py-3 lg:py-3.5">
+                  <Checkbox checked={task.done} onCheckedChange={() => toggle(task.id)} className="mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-ibm ${task.done ? "line-through text-muted-foreground" : "text-foreground"}`}>{task.title}</p>
-                    <p className="text-xs text-muted-foreground">{task.client}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className={`text-sm font-ibm leading-snug ${task.done ? "line-through text-muted-foreground" : "text-foreground"}`}>{task.title}</p>
+                      {task.urgent && <span className="text-xs px-1.5 py-0.5 rounded status-urgent shrink-0">срочно</span>}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{task.client} · {task.time}</p>
                   </div>
-                  {task.urgent && <span className="text-xs px-2 py-0.5 rounded status-urgent shrink-0">срочно</span>}
                 </div>
               ))}
             </div>
