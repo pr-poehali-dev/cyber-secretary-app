@@ -1,6 +1,6 @@
 """
-API для адвокатской системы LexDesk.
-Управляет доверителями, задачами, следственными действиями и сроками.
+API для адвокатской системы LexDesk v3.
+Роутинг через query-параметр ?path= (платформа не поддерживает sub-paths).
 """
 import json
 import os
@@ -11,7 +11,7 @@ SCHEMA = "t_p21225702_cyber_secretary_app"
 
 CORS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
 }
 
@@ -19,15 +19,22 @@ def get_conn():
     return psycopg2.connect(os.environ["DATABASE_URL"])
 
 def resp(body, status=200):
-    return {"statusCode": status, "headers": {**CORS, "Content-Type": "application/json"}, "body": json.dumps(body, ensure_ascii=False)}
+    return {"statusCode": status, "headers": {**CORS, "Content-Type": "application/json"}, "body": json.dumps(body, ensure_ascii=False, default=str)}
 
 def handler(event: dict, context) -> dict:
+    """LexDesk API — роутинг через ?path="""
+
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
 
     method = event.get("httpMethod", "GET")
-    path = event.get("path", "/").rstrip("/")
     qs = event.get("queryStringParameters") or {}
+    # Путь передаётся через ?path=/clients или через event["path"]
+    path = qs.get("path") or event.get("path", "/")
+    path = path.rstrip("/") or "/"
+    # Убираем ?path= из остальных query-параметров
+    extra_qs = {k: v for k, v in qs.items() if k != "path"}
+
     body = {}
     if event.get("body"):
         body = json.loads(event["body"])
@@ -69,9 +76,11 @@ def handler(event: dict, context) -> dict:
 
     # ── /clients/{id} ────────────────────────────────────────────────────────
     if path.startswith("/clients/"):
-        client_id = int(path.split("/")[2])
+        parts = path.split("/")
+        client_id = int(parts[2])
+        sub = "/".join(parts[3:]) if len(parts) > 3 else ""
 
-        if method == "PUT":
+        if method == "PUT" and not sub:
             f = body
             with get_conn() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -88,7 +97,7 @@ def handler(event: dict, context) -> dict:
                 conn.commit()
             return resp(row)
 
-        if method == "POST" and path.endswith("/history"):
+        if method == "POST" and sub == "history":
             with get_conn() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute(f"""
@@ -101,7 +110,7 @@ def handler(event: dict, context) -> dict:
 
     # ── /tasks ───────────────────────────────────────────────────────────────
     if path == "/tasks":
-        date_filter = qs.get("date", "")
+        date_filter = extra_qs.get("date", "")
         if method == "GET":
             with get_conn() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -140,7 +149,7 @@ def handler(event: dict, context) -> dict:
     # ── /investigations ──────────────────────────────────────────────────────
     if path == "/investigations":
         if method == "GET":
-            client_filter = qs.get("client", "")
+            client_filter = extra_qs.get("client", "")
             with get_conn() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     if client_filter:
